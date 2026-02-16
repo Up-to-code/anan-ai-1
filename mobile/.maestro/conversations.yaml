@@ -1,0 +1,10 @@
+# Open conversations drawer and assert list UI
+appId: com.anan.mobile
+---
+- launchApp
+- tapOn:
+    id: "فتح قائمة المحادثات"
+- assertVisible:
+    text: "محادثة جديدة"
+- assertVisible:
+    text: "بحث في المحادثات"

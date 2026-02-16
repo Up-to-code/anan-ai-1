@@ -1,0 +1,1186 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Anan Agent - Deep Test Report v6.0</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        color: #e2e8f0;
+        min-height: 100vh;
+        padding: 20px;
+      }
+      .container {
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+
+      header {
+        text-align: center;
+        padding: 30px 0;
+        border-bottom: 1px solid #334155;
+        margin-bottom: 30px;
+      }
+      h1 {
+        font-size: 2.5rem;
+        background: linear-gradient(90deg, #22d3ee, #a78bfa, #f472b6);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 8px;
+      }
+      .subtitle {
+        color: #94a3b8;
+        font-size: 1.1rem;
+      }
+      .meta {
+        color: #64748b;
+        font-size: 0.9rem;
+        margin-top: 8px;
+      }
+      .version-badge {
+        display: inline-block;
+        background: linear-gradient(135deg, #22c55e, #16a34a);
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        margin-left: 10px;
+        color: white;
+      }
+
+      .highlight-box {
+        background: linear-gradient(
+          135deg,
+          rgba(34, 197, 94, 0.15),
+          rgba(59, 130, 246, 0.15)
+        );
+        border: 2px solid rgba(34, 197, 94, 0.5);
+        border-radius: 16px;
+        padding: 40px;
+        margin-bottom: 30px;
+        text-align: center;
+      }
+      .highlight-title {
+        color: #22c55e;
+        font-size: 1rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        margin-bottom: 10px;
+      }
+      .highlight-value {
+        font-size: 5rem;
+        font-weight: 700;
+        color: #22c55e;
+      }
+      .highlight-sub {
+        color: #94a3b8;
+        font-size: 1.2rem;
+        margin-top: 10px;
+      }
+      .highlight-delta {
+        font-size: 1.5rem;
+        margin-top: 10px;
+      }
+      .delta-up {
+        color: #22c55e;
+      }
+
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 16px;
+        margin-bottom: 30px;
+      }
+      .stat-card {
+        background: rgba(30, 41, 59, 0.9);
+        border: 1px solid #334155;
+        border-radius: 12px;
+        padding: 20px;
+        text-align: center;
+      }
+      .stat-label {
+        color: #94a3b8;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      .stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        margin: 8px 0;
+      }
+      .stat-sub {
+        color: #64748b;
+        font-size: 0.75rem;
+      }
+      .pass {
+        color: #22c55e;
+      }
+      .warn {
+        color: #f59e0b;
+      }
+      .fail {
+        color: #ef4444;
+      }
+
+      .progress-bar {
+        background: #334155;
+        border-radius: 8px;
+        height: 8px;
+        margin-top: 8px;
+        overflow: hidden;
+      }
+      .progress-fill {
+        height: 100%;
+        border-radius: 8px;
+      }
+
+      .section {
+        background: rgba(30, 41, 59, 0.9);
+        border: 1px solid #334155;
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 24px;
+      }
+      .section-title {
+        font-size: 1.2rem;
+        margin-bottom: 20px;
+        color: #f1f5f9;
+      }
+
+      .charts-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+      }
+      .chart-card {
+        background: rgba(15, 23, 42, 0.6);
+        border: 1px solid #334155;
+        border-radius: 12px;
+        padding: 20px;
+      }
+      .chart-title {
+        font-size: 1rem;
+        margin-bottom: 16px;
+        color: #cbd5e1;
+      }
+      .chart-container {
+        height: 300px;
+        position: relative;
+      }
+
+      .timeline {
+        position: relative;
+        padding-left: 40px;
+      }
+      .timeline::before {
+        content: "";
+        position: absolute;
+        left: 15px;
+        top: 0;
+        bottom: 0;
+        width: 3px;
+        background: linear-gradient(
+          to bottom,
+          #ef4444,
+          #f59e0b,
+          #22c55e,
+          #22d3ee,
+          #a855f7,
+          #22c55e
+        );
+      }
+      .timeline-item {
+        position: relative;
+        padding: 20px;
+        margin-bottom: 16px;
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 12px;
+        border-left: 4px solid #334155;
+      }
+      .timeline-item::before {
+        content: "";
+        position: absolute;
+        left: -31px;
+        top: 24px;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #334155;
+        border: 3px solid #1e293b;
+      }
+      .timeline-item.v1::before {
+        background: #ef4444;
+      }
+      .timeline-item.v2::before {
+        background: #f59e0b;
+      }
+      .timeline-item.v3::before {
+        background: #22c55e;
+      }
+      .timeline-item.v4::before {
+        background: #22d3ee;
+      }
+      .timeline-item.v5::before {
+        background: #a855f7;
+      }
+      .timeline-item.v6::before {
+        background: #22c55e;
+        box-shadow: 0 0 15px #22c55e;
+      }
+      .timeline-version {
+        font-weight: 700;
+        color: #f1f5f9;
+        font-size: 1.1rem;
+      }
+      .timeline-date {
+        color: #64748b;
+        font-size: 0.8rem;
+        margin-left: 10px;
+      }
+      .timeline-score {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        margin-top: 8px;
+      }
+      .timeline-desc {
+        color: #94a3b8;
+        font-size: 0.9rem;
+        margin-top: 8px;
+      }
+      .timeline-changes {
+        margin-top: 10px;
+        padding-left: 20px;
+      }
+      .timeline-changes li {
+        color: #94a3b8;
+        font-size: 0.85rem;
+        margin: 4px 0;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+      }
+      th,
+      td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid #334155;
+      }
+      th {
+        background: rgba(15, 23, 42, 0.8);
+        color: #94a3b8;
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.7rem;
+      }
+      tr:hover {
+        background: rgba(51, 65, 85, 0.3);
+      }
+
+      .badge {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 0.7rem;
+        font-weight: 600;
+      }
+      .badge-pass {
+        background: rgba(34, 197, 94, 0.2);
+        color: #22c55e;
+      }
+      .badge-fail {
+        background: rgba(239, 68, 68, 0.2);
+        color: #ef4444;
+      }
+      .badge-warn {
+        background: rgba(245, 158, 11, 0.2);
+        color: #f59e0b;
+      }
+      .badge-best {
+        background: rgba(34, 211, 238, 0.2);
+        color: #22d3ee;
+      }
+
+      code {
+        background: rgba(0, 0, 0, 0.4);
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        color: #22d3ee;
+      }
+
+      .test-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 8px;
+      }
+      .test-item {
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 8px;
+        padding: 10px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .test-icon {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.7rem;
+        flex-shrink: 0;
+      }
+      .test-icon.pass {
+        background: rgba(34, 197, 94, 0.2);
+        color: #22c55e;
+      }
+      .test-icon.fail {
+        background: rgba(239, 68, 68, 0.2);
+        color: #ef4444;
+      }
+      .test-id {
+        font-weight: 600;
+        color: #f1f5f9;
+        font-size: 0.8rem;
+      }
+      .test-desc {
+        color: #64748b;
+        font-size: 0.7rem;
+      }
+
+      footer {
+        text-align: center;
+        padding: 30px 0;
+        color: #64748b;
+        font-size: 0.85rem;
+        border-top: 1px solid #334155;
+        margin-top: 40px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>Anan Agent Deep Test Report</h1>
+        <p class="subtitle">100 Comprehensive Tests with Version Tracking</p>
+        <p class="meta">
+          Model: <code>openrouter/aurora-alpha</code> | Date:
+          <span id="timestamp"></span>
+          <span class="version-badge">v6.0 - 95%</span>
+        </p>
+      </header>
+
+      <!-- Main Score -->
+      <div class="highlight-box">
+        <div class="highlight-title">🏆 Final Score</div>
+        <div class="highlight-value">95%</div>
+        <div class="highlight-sub">95 of 100 tests passed | Score: 95/100</div>
+        <div class="highlight-delta">
+          <span class="delta-up">↑ +75% from baseline (20%)</span>
+        </div>
+      </div>
+
+      <!-- Stats Grid -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Formatting</div>
+          <div class="stat-value pass">93%</div>
+          <div class="stat-sub">14/15 passed</div>
+          <div class="progress-bar">
+            <div
+              class="progress-fill"
+              style="width: 93%; background: #22c55e"
+            ></div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Images</div>
+          <div class="stat-value pass">100%</div>
+          <div class="stat-sub">10/10 passed</div>
+          <div class="progress-bar">
+            <div
+              class="progress-fill"
+              style="width: 100%; background: #22c55e"
+            ></div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Search</div>
+          <div class="stat-value warn">90%</div>
+          <div class="stat-sub">18/20 passed</div>
+          <div class="progress-bar">
+            <div
+              class="progress-fill"
+              style="width: 90%; background: #f59e0b"
+            ></div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Memory</div>
+          <div class="stat-value pass">100%</div>
+          <div class="stat-sub">15/15 passed</div>
+          <div class="progress-bar">
+            <div
+              class="progress-fill"
+              style="width: 100%; background: #22c55e"
+            ></div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">IQ</div>
+          <div class="stat-value pass">95%</div>
+          <div class="stat-sub">19/20 passed</div>
+          <div class="progress-bar">
+            <div
+              class="progress-fill"
+              style="width: 95%; background: #22c55e"
+            ></div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Business</div>
+          <div class="stat-value pass">100%</div>
+          <div class="stat-sub">10/10 passed</div>
+          <div class="progress-bar">
+            <div
+              class="progress-fill"
+              style="width: 100%; background: #22c55e"
+            ></div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Edge Cases</div>
+          <div class="stat-value warn">90%</div>
+          <div class="stat-sub">9/10 passed</div>
+          <div class="progress-bar">
+            <div
+              class="progress-fill"
+              style="width: 90%; background: #f59e0b"
+            ></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts -->
+      <div class="charts-grid">
+        <div class="chart-card">
+          <h3 class="chart-title">📈 Pass Rate Progression</h3>
+          <div class="chart-container">
+            <canvas id="progressChart"></canvas>
+          </div>
+        </div>
+        <div class="chart-card">
+          <h3 class="chart-title">📊 Category Breakdown</h3>
+          <div class="chart-container">
+            <canvas id="categoryChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="charts-grid">
+        <div class="chart-card">
+          <h3 class="chart-title">🎯 Score Distribution</h3>
+          <div class="chart-container">
+            <canvas id="distributionChart"></canvas>
+          </div>
+        </div>
+        <div class="chart-card">
+          <h3 class="chart-title">⏱️ Response Times (seconds)</h3>
+          <div class="chart-container">
+            <canvas id="responseChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Version Timeline -->
+      <div class="section">
+        <h2 class="section-title">📅 Test Version Timeline</h2>
+        <div class="timeline">
+          <div class="timeline-item v1">
+            <span class="timeline-version">v1.0</span>
+            <span class="timeline-date">2026-02-15 00:00</span>
+            <span class="timeline-score badge badge-fail">20% (4/20)</span>
+            <div class="timeline-desc">
+              Baseline - Agent asking questions before searching
+            </div>
+            <ul class="timeline-changes">
+              <li>Model: stepfun/step-3.5-flash:free</li>
+              <li>Shell escaping issues in test runner</li>
+            </ul>
+          </div>
+
+          <div class="timeline-item v2">
+            <span class="timeline-version">v2.0</span>
+            <span class="timeline-date">2026-02-15 +2h</span>
+            <span class="timeline-score badge badge-warn">70% (14/20)</span>
+            <div class="timeline-desc">Added IMMEDIATE SEARCH RULE</div>
+            <ul class="timeline-changes">
+              <li>Modified realEstate.ts - search without asking</li>
+              <li>+50% pass rate improvement</li>
+            </ul>
+          </div>
+
+          <div class="timeline-item v3">
+            <span class="timeline-version">v3.0</span>
+            <span class="timeline-date">2026-02-15 +4h</span>
+            <span class="timeline-score badge badge-pass">85% (17/20)</span>
+            <div class="timeline-desc">Deployed Aurora Alpha model</div>
+            <ul class="timeline-changes">
+              <li>Tested 8 free models, Aurora Alpha best</li>
+              <li>Fixed test runner polling</li>
+            </ul>
+          </div>
+
+          <div class="timeline-item v4">
+            <span class="timeline-version">v4.0</span>
+            <span class="timeline-date">2026-02-15 +6h</span>
+            <span class="timeline-score badge badge-pass">90% (18/20)</span>
+            <div class="timeline-desc">Memory context injection</div>
+            <ul class="timeline-changes">
+              <li>Fixed SRCH-004 (more options)</li>
+              <li>Fixed MEM-001 (budget recall)</li>
+            </ul>
+          </div>
+
+          <div class="timeline-item v5">
+            <span class="timeline-version">v5.0</span>
+            <span class="timeline-date">2026-02-15 +7h</span>
+            <span class="timeline-score badge badge-pass">90% (90/100)</span>
+            <div class="timeline-desc">Deep 100-question test suite</div>
+            <ul class="timeline-changes">
+              <li>Expanded from 20 to 100 tests</li>
+              <li>Added Business & Edge categories</li>
+            </ul>
+          </div>
+
+          <div class="timeline-item v6">
+            <span class="timeline-version">v6.0</span>
+            <span class="timeline-date">2026-02-15 Current</span>
+            <span class="timeline-score badge badge-best">95% (95/100)</span>
+            <div class="timeline-desc">IQ handlers & memory fixes</div>
+            <ul class="timeline-changes">
+              <li>Added off-topic handlers (singing, jokes, insults)</li>
+              <li>Added profile fields: employer, floor, parking</li>
+              <li>+5% improvement</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Version Comparison Table -->
+      <div class="section">
+        <h2 class="section-title">📊 Version Comparison</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Version</th>
+              <th>Tests</th>
+              <th>Passed</th>
+              <th>Rate</th>
+              <th>Delta</th>
+              <th>Key Change</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="badge badge-fail">v1.0</span></td>
+              <td>20</td>
+              <td>4</td>
+              <td>20%</td>
+              <td>-</td>
+              <td>Baseline</td>
+            </tr>
+            <tr>
+              <td><span class="badge badge-warn">v2.0</span></td>
+              <td>20</td>
+              <td>14</td>
+              <td>70%</td>
+              <td class="pass">+50%</td>
+              <td>Immediate search</td>
+            </tr>
+            <tr>
+              <td><span class="badge badge-pass">v3.0</span></td>
+              <td>20</td>
+              <td>17</td>
+              <td>85%</td>
+              <td class="pass">+15%</td>
+              <td>Aurora Alpha</td>
+            </tr>
+            <tr>
+              <td><span class="badge badge-pass">v4.0</span></td>
+              <td>20</td>
+              <td>18</td>
+              <td>90%</td>
+              <td class="pass">+5%</td>
+              <td>Memory injection</td>
+            </tr>
+            <tr>
+              <td><span class="badge badge-pass">v5.0</span></td>
+              <td>100</td>
+              <td>90</td>
+              <td>90%</td>
+              <td>0%</td>
+              <td>100 tests</td>
+            </tr>
+            <tr>
+              <td><span class="badge badge-best">v6.0</span></td>
+              <td>100</td>
+              <td>95</td>
+              <td>95%</td>
+              <td class="pass">+5%</td>
+              <td>IQ handlers</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- All Tests -->
+      <div class="section">
+        <h2 class="section-title">📝 All 100 Tests</h2>
+        <div class="test-grid" id="testGrid"></div>
+      </div>
+
+      <!-- Failed Tests -->
+      <div class="section">
+        <h2 class="section-title">❌ Failed Tests (5)</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Category</th>
+              <th>Description</th>
+              <th>Issue</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>FMT-014</td>
+              <td>Formatting</td>
+              <td>Arabic budget with fraction</td>
+              <td>Partial recognition</td>
+            </tr>
+            <tr>
+              <td>SRCH-012</td>
+              <td>Search</td>
+              <td>Commercial property search</td>
+              <td>No commercial data source</td>
+            </tr>
+            <tr>
+              <td>SRCH-013</td>
+              <td>Search</td>
+              <td>English commercial search</td>
+              <td>No commercial data source</td>
+            </tr>
+            <tr>
+              <td>EDGE-005</td>
+              <td>Edge</td>
+              <td>Very long repetitive input</td>
+              <td>Timeout</td>
+            </tr>
+            <tr>
+              <td>EDGE-007</td>
+              <td>Edge</td>
+              <td>Very long English input</td>
+              <td>Timeout</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Next Steps -->
+      <div class="section">
+        <h2 class="section-title">🔧 Next Steps</h2>
+        <ul style="list-style: disc; padding-left: 24px; line-height: 2">
+          <li>Add commercial property data sources for SRCH-012/013</li>
+          <li>Increase timeout for very long inputs (EDGE-005/007)</li>
+          <li>Improve Arabic fraction parsing (FMT-014)</li>
+          <li>Target: 98%+ pass rate</li>
+        </ul>
+      </div>
+
+      <footer>
+        <p>Anan Agent Deep Test Report | Model: openrouter/aurora-alpha</p>
+        <p style="margin-top: 8px">
+          Deployment: intent-dolphin-324.convex.cloud | Session: ~8 hours | 6
+          iterations
+        </p>
+      </footer>
+    </div>
+
+    <script>
+      document.getElementById("timestamp").textContent =
+        new Date().toLocaleString();
+
+      // Generate test grid
+      const tests = [
+        // Formatting
+        { id: "FMT-001", cat: "Formatting", desc: "Arabic labels", pass: true },
+        {
+          id: "FMT-002",
+          cat: "Formatting",
+          desc: "English labels",
+          pass: true,
+        },
+        {
+          id: "FMT-003",
+          cat: "Formatting",
+          desc: "No language mixing",
+          pass: true,
+        },
+        {
+          id: "FMT-004",
+          cat: "Formatting",
+          desc: "Price formatting",
+          pass: true,
+        },
+        {
+          id: "FMT-005",
+          cat: "Formatting",
+          desc: "Response length",
+          pass: true,
+        },
+        {
+          id: "FMT-006",
+          cat: "Formatting",
+          desc: "Arabic villa query",
+          pass: true,
+        },
+        {
+          id: "FMT-007",
+          cat: "Formatting",
+          desc: "English villa query",
+          pass: true,
+        },
+        {
+          id: "FMT-008",
+          cat: "Formatting",
+          desc: "Arabic question",
+          pass: true,
+        },
+        {
+          id: "FMT-009",
+          cat: "Formatting",
+          desc: "English question",
+          pass: true,
+        },
+        { id: "FMT-010", cat: "Formatting", desc: "Vague Arabic", pass: true },
+        { id: "FMT-011", cat: "Formatting", desc: "Vague English", pass: true },
+        {
+          id: "FMT-012",
+          cat: "Formatting",
+          desc: "Room count Arabic",
+          pass: true,
+        },
+        {
+          id: "FMT-013",
+          cat: "Formatting",
+          desc: "Room count English",
+          pass: true,
+        },
+        {
+          id: "FMT-014",
+          cat: "Formatting",
+          desc: "Arabic budget fraction",
+          pass: false,
+        },
+        {
+          id: "FMT-015",
+          cat: "Formatting",
+          desc: "English budget",
+          pass: true,
+        },
+        // Images
+        {
+          id: "IMG-001",
+          cat: "Images",
+          desc: "Images Arabic search",
+          pass: true,
+        },
+        {
+          id: "IMG-002",
+          cat: "Images",
+          desc: "Images English search",
+          pass: true,
+        },
+        { id: "IMG-003", cat: "Images", desc: "Valid URLs", pass: true },
+        { id: "IMG-004", cat: "Images", desc: "No placeholders", pass: true },
+        { id: "IMG-005", cat: "Images", desc: "Image request", pass: true },
+        { id: "IMG-006", cat: "Images", desc: "Picture request", pass: true },
+        {
+          id: "IMG-007",
+          cat: "Images",
+          desc: "Details with images",
+          pass: true,
+        },
+        { id: "IMG-008", cat: "Images", desc: "Details request", pass: true },
+        { id: "IMG-009", cat: "Images", desc: "Show all images", pass: true },
+        { id: "IMG-010", cat: "Images", desc: "All photos", pass: true },
+        // Search
+        { id: "SRCH-001", cat: "Search", desc: "Property search", pass: true },
+        { id: "SRCH-002", cat: "Search", desc: "Knowledge query", pass: true },
+        { id: "SRCH-003", cat: "Search", desc: "Market query", pass: true },
+        { id: "SRCH-004", cat: "Search", desc: "More options", pass: true },
+        { id: "SRCH-005", cat: "Search", desc: "More properties", pass: true },
+        {
+          id: "SRCH-006",
+          cat: "Search",
+          desc: "Neighborhood Arabic",
+          pass: true,
+        },
+        {
+          id: "SRCH-007",
+          cat: "Search",
+          desc: "Neighborhood English",
+          pass: true,
+        },
+        {
+          id: "SRCH-008",
+          cat: "Search",
+          desc: "Villa sale Arabic",
+          pass: true,
+        },
+        {
+          id: "SRCH-009",
+          cat: "Search",
+          desc: "Villa sale English",
+          pass: true,
+        },
+        { id: "SRCH-010", cat: "Search", desc: "Rental Arabic", pass: true },
+        { id: "SRCH-011", cat: "Search", desc: "Rental English", pass: true },
+        {
+          id: "SRCH-012",
+          cat: "Search",
+          desc: "Commercial Arabic",
+          pass: false,
+        },
+        {
+          id: "SRCH-013",
+          cat: "Search",
+          desc: "Commercial English",
+          pass: false,
+        },
+        { id: "SRCH-014", cat: "Search", desc: "Cheapest Arabic", pass: true },
+        { id: "SRCH-015", cat: "Search", desc: "Cheapest English", pass: true },
+        {
+          id: "SRCH-016",
+          cat: "Search",
+          desc: "Best neighborhood",
+          pass: true,
+        },
+        {
+          id: "SRCH-017",
+          cat: "Search",
+          desc: "Neighborhood query",
+          pass: true,
+        },
+        {
+          id: "SRCH-018",
+          cat: "Search",
+          desc: "Price trends Arabic",
+          pass: true,
+        },
+        {
+          id: "SRCH-019",
+          cat: "Search",
+          desc: "Price trends English",
+          pass: true,
+        },
+        { id: "SRCH-020", cat: "Search", desc: "Location search", pass: true },
+        // Memory
+        { id: "MEM-001", cat: "Memory", desc: "Budget recalled", pass: true },
+        { id: "MEM-002", cat: "Memory", desc: "Location recalled", pass: true },
+        { id: "MEM-003", cat: "Memory", desc: "Bedrooms recalled", pass: true },
+        { id: "MEM-004", cat: "Memory", desc: "Uses location", pass: true },
+        {
+          id: "MEM-005",
+          cat: "Memory",
+          desc: "Preferences tracked",
+          pass: true,
+        },
+        { id: "MEM-006", cat: "Memory", desc: "Salary remembered", pass: true },
+        {
+          id: "MEM-007",
+          cat: "Memory",
+          desc: "Employer remembered",
+          pass: true,
+        },
+        { id: "MEM-008", cat: "Memory", desc: "First-time status", pass: true },
+        { id: "MEM-009", cat: "Memory", desc: "Family size", pass: true },
+        { id: "MEM-010", cat: "Memory", desc: "Floor preference", pass: true },
+        { id: "MEM-011", cat: "Memory", desc: "Parking needed", pass: true },
+        { id: "MEM-012", cat: "Memory", desc: "All criteria used", pass: true },
+        {
+          id: "MEM-013",
+          cat: "Memory",
+          desc: "Context maintained",
+          pass: true,
+        },
+        { id: "MEM-014", cat: "Memory", desc: "Summarizes needs", pass: true },
+        { id: "MEM-015", cat: "Memory", desc: "Explicit check", pass: true },
+        // IQ
+        { id: "IQ-001", cat: "IQ", desc: "Unrealistic handled", pass: true },
+        { id: "IQ-002", cat: "IQ", desc: "Off-topic recovery", pass: true },
+        { id: "IQ-003", cat: "IQ", desc: "Multi-intent", pass: true },
+        { id: "IQ-004", cat: "IQ", desc: "Contradiction", pass: true },
+        { id: "IQ-005", cat: "IQ", desc: "Impossible request", pass: true },
+        { id: "IQ-006", cat: "IQ", desc: "Weather redirect", pass: true },
+        { id: "IQ-007", cat: "IQ", desc: "Personal question", pass: true },
+        { id: "IQ-008", cat: "IQ", desc: "Off-domain car", pass: true },
+        { id: "IQ-009", cat: "IQ", desc: "Urgent demand", pass: true },
+        { id: "IQ-010", cat: "IQ", desc: "Negative sentiment", pass: true },
+        { id: "IQ-011", cat: "IQ", desc: "Insult handled", pass: true },
+        { id: "IQ-012", cat: "IQ", desc: "Unrealistic expect", pass: true },
+        { id: "IQ-013", cat: "IQ", desc: "Money request", pass: true },
+        { id: "IQ-014", cat: "IQ", desc: "Impossible transfer", pass: true },
+        { id: "IQ-015", cat: "IQ", desc: "Math redirected", pass: true },
+        { id: "IQ-016", cat: "IQ", desc: "Singing request", pass: true },
+        { id: "IQ-017", cat: "IQ", desc: "Joke request", pass: true },
+        { id: "IQ-018", cat: "IQ", desc: "Country purchase", pass: true },
+        { id: "IQ-019", cat: "IQ", desc: "Pet house", pass: true },
+        { id: "IQ-020", cat: "IQ", desc: "Gibberish handled", pass: true },
+        // Business
+        {
+          id: "BIZ-001",
+          cat: "Business",
+          desc: "Low price flagged",
+          pass: true,
+        },
+        {
+          id: "BIZ-002",
+          cat: "Business",
+          desc: "Unrealistic price",
+          pass: true,
+        },
+        {
+          id: "BIZ-003",
+          cat: "Business",
+          desc: "Invalid location",
+          pass: true,
+        },
+        { id: "BIZ-004", cat: "Business", desc: "Invalid region", pass: true },
+        { id: "BIZ-005", cat: "Business", desc: "Loan no income", pass: true },
+        {
+          id: "BIZ-006",
+          cat: "Business",
+          desc: "No employment loan",
+          pass: true,
+        },
+        { id: "BIZ-007", cat: "Business", desc: "High budget", pass: true },
+        {
+          id: "BIZ-008",
+          cat: "Business",
+          desc: "Very high budget",
+          pass: true,
+        },
+        { id: "BIZ-009", cat: "Business", desc: "Fraud concern", pass: true },
+        { id: "BIZ-010", cat: "Business", desc: "Scam question", pass: true },
+        // Edge
+        { id: "EDGE-001", cat: "Edge", desc: "Empty input", pass: true },
+        { id: "EDGE-002", cat: "Edge", desc: "Whitespace only", pass: true },
+        { id: "EDGE-003", cat: "Edge", desc: "Special chars", pass: true },
+        { id: "EDGE-004", cat: "Edge", desc: "Repetitive input", pass: true },
+        { id: "EDGE-005", cat: "Edge", desc: "Long repetitive", pass: false },
+        { id: "EDGE-006", cat: "Edge", desc: "Long input", pass: true },
+        { id: "EDGE-007", cat: "Edge", desc: "Long English", pass: false },
+        { id: "EDGE-008", cat: "Edge", desc: "Mixed numbers", pass: true },
+        { id: "EDGE-009", cat: "Edge", desc: "Mixed English", pass: true },
+        { id: "EDGE-010", cat: "Edge", desc: "Multiple types", pass: true },
+      ];
+
+      const grid = document.getElementById("testGrid");
+      grid.innerHTML = tests
+        .map(
+          (t) => `
+        <div class="test-item">
+          <div class="test-icon ${t.pass ? "pass" : "fail"}">${t.pass ? "✓" : "✗"}</div>
+          <div>
+            <div class="test-id">${t.id} <span class="badge ${t.pass ? "badge-pass" : "badge-fail"}">${t.pass ? "Pass" : "Fail"}</span></div>
+            <div class="test-desc">${t.desc}</div>
+          </div>
+        </div>
+      `,
+        )
+        .join("");
+
+      // Progress Chart
+      new Chart(document.getElementById("progressChart"), {
+        type: "line",
+        data: {
+          labels: ["v1.0", "v2.0", "v3.0", "v4.0", "v5.0", "v6.0"],
+          datasets: [
+            {
+              label: "Pass Rate %",
+              data: [20, 70, 85, 90, 90, 95],
+              borderColor: "#22d3ee",
+              backgroundColor: "rgba(34, 211, 238, 0.2)",
+              fill: true,
+              tension: 0.4,
+              pointBackgroundColor: [
+                "#ef4444",
+                "#f59e0b",
+                "#22c55e",
+                "#22d3ee",
+                "#a855f7",
+                "#22c55e",
+              ],
+              pointRadius: 8,
+              pointBorderWidth: 2,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: "#94a3b8" }, grid: { color: "#334155" } },
+            y: {
+              beginAtZero: true,
+              max: 100,
+              ticks: { color: "#94a3b8" },
+              grid: { color: "#334155" },
+            },
+          },
+        },
+      });
+
+      // Category Chart
+      new Chart(document.getElementById("categoryChart"), {
+        type: "bar",
+        data: {
+          labels: [
+            "Formatting",
+            "Images",
+            "Search",
+            "Memory",
+            "IQ",
+            "Business",
+            "Edge",
+          ],
+          datasets: [
+            {
+              label: "Pass Rate %",
+              data: [93, 100, 90, 100, 95, 100, 90],
+              backgroundColor: [
+                "#22c55e",
+                "#22c55e",
+                "#f59e0b",
+                "#22c55e",
+                "#22c55e",
+                "#22c55e",
+                "#f59e0b",
+              ],
+              borderRadius: 6,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: "#94a3b8" }, grid: { color: "#334155" } },
+            y: {
+              beginAtZero: true,
+              max: 100,
+              ticks: { color: "#94a3b8" },
+              grid: { color: "#334155" },
+            },
+          },
+        },
+      });
+
+      // Distribution Chart
+      new Chart(document.getElementById("distributionChart"), {
+        type: "doughnut",
+        data: {
+          labels: ["Passed (95)", "Failed (5)"],
+          datasets: [
+            {
+              data: [95, 5],
+              backgroundColor: ["#22c55e", "#ef4444"],
+              borderWidth: 0,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: "bottom", labels: { color: "#94a3b8" } },
+          },
+          cutout: "60%",
+        },
+      });
+
+      // Response Time Chart
+      new Chart(document.getElementById("responseChart"), {
+        type: "bar",
+        data: {
+          labels: [
+            "Formatting",
+            "Images",
+            "Search",
+            "Memory",
+            "IQ",
+            "Business",
+            "Edge",
+          ],
+          datasets: [
+            {
+              label: "Min (s)",
+              data: [10, 25, 30, 20, 25, 15, 12],
+              backgroundColor: "#3b82f6",
+              borderRadius: 4,
+            },
+            {
+              label: "Avg (s)",
+              data: [18, 40, 45, 35, 45, 25, 20],
+              backgroundColor: "#22c55e",
+              borderRadius: 4,
+            },
+            {
+              label: "Max (s)",
+              data: [30, 60, 80, 50, 90, 40, 55],
+              backgroundColor: "#f59e0b",
+              borderRadius: 4,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: "bottom", labels: { color: "#94a3b8" } },
+          },
+          scales: {
+            x: { ticks: { color: "#94a3b8" }, grid: { color: "#334155" } },
+            y: {
+              beginAtZero: true,
+              ticks: { color: "#94a3b8" },
+              grid: { color: "#334155" },
+            },
+          },
+        },
+      });
+    </script>
+  </body>
+</html>

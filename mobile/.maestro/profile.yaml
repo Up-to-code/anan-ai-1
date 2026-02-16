@@ -1,0 +1,16 @@
+# Navigate to Profile and assert name + phone section
+appId: com.anan.mobile
+---
+- launchApp
+- tapOn:
+    id: "فتح قائمة المحادثات"
+- tapOn:
+    text: "الحساب والإعدادات"
+- tapOn:
+    id: "معلومات الحساب"
+- assertVisible:
+    text: "الملف الشخصي"
+- assertVisible:
+    text: "الاسم"
+- assertVisible:
+    text: "رقم الهاتف"

@@ -1,0 +1,6 @@
+# Launch app and assert main chat screen (عنان = app title in header)
+appId: com.anan.mobile
+---
+- launchApp
+- assertVisible:
+    text: "عنان"

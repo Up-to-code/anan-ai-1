@@ -1,0 +1,254 @@
+---
+description: Rules for the Anan Agent test results report: structure, charts, timelines, improvement tracking, testing conventions, and data flow. Use when creating, modifying, or extending test-results-report.html, scripts/generate-test-report.ts, or tests/focused-test.cjs.
+globs: test-results-report.html,scripts/generate-test-report.ts,tests/focused-test.cjs,scripts/run-column-tests.ts
+---
+
+# Test Report Rules
+
+Rules for the Anan Agent test results report and all related charts, timelines, improvement tracking, and testing infrastructure.
+
+---
+
+## 1. Report Structure (Required Sections, in Order)
+
+The report must include these sections in this order:
+
+| Order | Section | Purpose |
+|-------|---------|---------|
+| 1 | **Header** | Title, subtitle, generated timestamp, model, test count |
+| 2 | **Methodology** | Test environment, sample size (N), pass criteria, reproducibility commands |
+| 3 | **Main Highlight** | Final pass % with Wilson 95% CI, summary line |
+| 4 | **Stats Row** | Total, Passed, Failed + category stats (Formatting, Images, Search, Memory, IQ) with 95% CI |
+| 5 | **Session Timeline** | Chronological improvement milestones (see Timeline rules) |
+| 6 | **Charts** | Progress, Category, Response Times, Distribution, Radar, Heatmap |
+| 7 | **Models Evaluated** | Model cards with status (BEST/WORKS/ISSUES/FAILED) |
+| 8 | **Per-Test Table** | Test ID, Category, Description, Pass/Fail, Duration, Failure Reason |
+| 9 | **All Tests Grid** | Visual test cards (pass/fail icons) |
+| 10 | **Sample Output** | Example input/output from agent |
+| 11 | **Files Modified** | File, Change, Status |
+| 12 | **Next Steps** | Priority, Task, Description |
+| 13 | **Footer** | Session date, deployment, model, export hint |
+
+---
+
+## 2. Test Suite Conventions
+
+### Focused Suite (tests/focused-test.cjs)
+
+- **20 tests** across 5 categories:
+  - Formatting (FMT-001..FMT-005): 5 tests
+  - Images (IMG-001..IMG-004): 4 tests
+  - Search (SRCH-001..SRCH-004): 4 tests
+  - Memory (MEM-001..MEM-004): 4 tests
+  - IQ (IQ-001..IQ-003): 3 tests
+- **Test ID format**: `{CAT}-{NNN}` (e.g., FMT-001, SRCH-004).
+- **Run**: `node tests/focused-test.cjs <thread_id> [--json]`
+- **JSON output** (--json): `{ timestamp, threadId, total, passCount, passRate, results, durations }`
+
+### Column Tests (scripts/run-column-tests.ts)
+
+- **~14 scenarios** from `convex/agents/anan/testing/column_tests.ts`: A1–A3, B1–B3, F1–F2, R1–R5, G1–G2.
+- **Intents**: search, another, more_details, handoff, objection.
+- **API**: POST `/api/test/column` with `{ userId?, channel?, testCaseIds? }`
+- **Run**: `bun run scripts/run-column-tests.ts`
+
+### Report Data Source
+
+- The HTML report is primarily driven by **focused suite** results.
+- When using `generate-test-report.ts`, it reads focused-test JSON (stdin or `--input`) and updates the report template.
+
+---
+
+## 3. Chart Specifications
+
+### Chart 1: Progress Over Time (Line)
+
+- **Type**: Line chart.
+- **X-axis**: Session milestones (e.g., Initial, Instructions Fix, Timing Fix, Aurora Alpha, Memory Fix).
+- **Y-axis**: Pass rate (%).
+- **Data**: Ordered pairs (milestone, pass rate).
+- **Rules**: beginAtZero, max 100; point colors: red/orange for early, green for later; axis titles required.
+
+### Chart 2: Pass Rate by Category (Bar)
+
+- **Type**: Bar chart.
+- **X-axis**: Formatting, Images, Search, Memory, IQ.
+- **Y-axis**: Pass rate (%).
+- **Data**: One value per category (5/5=100%, 4/4=100%, 2/3=67%, etc.).
+- **Rules**: Color bars by status (green pass, orange warn); axis titles required.
+
+### Chart 3: Response Times (Grouped Bar)
+
+- **Type**: Grouped bar.
+- **X-axis**: Category.
+- **Y-axis**: Time (seconds).
+- **Datasets**: Min, Avg, Max per category.
+- **Rules**: Add footnote: "Estimated values. Actual measurements require timing instrumentation in the test runner." unless real durations exist.
+
+### Chart 4: Test Results Distribution (Doughnut)
+
+- **Type**: Doughnut.
+- **Labels**: "Passed (N, X%)", "Failed (M, Y%)".
+- **Data**: [passCount, failCount].
+- **Colors**: #22c55e (pass), #ef4444 (fail).
+
+### Chart 5: Category Comparison (Radar)
+
+- **Type**: Radar.
+- **Labels**: Formatting, Images, Search, Memory, IQ.
+- **Data**: Pass % per category (0–100).
+- **Rules**: Same 5 categories; point color orange for failing category.
+
+### Chart 6: Per-Test Heatmap/Matrix
+
+- **Type**: CSS grid (heatmap cells).
+- **Cells**: One per test ID; green (pass) or red (fail).
+- **Order**: Same as focused suite (FMT-001..IQ-003).
+
+### Chart Styling (All Charts)
+
+- Grid color: `rgba(250,250,249,0.08)`.
+- Axis/label color: `#a8a29e`.
+- Pass: `#22c55e`; Warn: `#f59e0b`; Fail: `#ef4444`.
+
+---
+
+## 4. Timeline Rules
+
+### Session Timeline Structure
+
+Each timeline item has:
+- **Time**: Relative (e.g., "00:00 - Initial State", "+1h - Instructions Fix").
+- **Title**: Short summary (e.g., "Baseline: 20% pass rate (4/20)").
+- **Description**: What changed, which files, outcome.
+
+### Timeline Item Status (CSS)
+
+- `.timeline-item` (default): pass (green dot).
+- `.timeline-item.warn`: warning (orange dot).
+- `.timeline-item.fail`: fail (red dot).
+
+### Typical Milestones (Session Improvement)
+
+1. Initial / Baseline (often fail).
+2. Instructions fix (IMMEDIATE SEARCH RULE, realEstate.ts, toolsSummary.ts).
+3. Test timing fix (polling, stdin).
+4. Model issues (if any).
+5. Model testing / selection.
+6. Memory fix (actions.ts, memory injection).
+7. More options fix (getLastSearchContext, refreshToken).
+8. Current / Final state.
+
+---
+
+## 5. Statistical Measures
+
+### Wilson Score Confidence Interval
+
+- **Use**: 95% CI for pass rate (total and per category).
+- **Display**: "90% (95% CI: 68–99%)" in highlight and stat boxes.
+- **Formula**: Wilson score interval; z=1.96 for 95%.
+- **Implementation**: `scripts/generate-test-report.ts` has `wilsonCI(passCount, total)`.
+
+### When to Show CI
+
+- Overall pass rate: always.
+- Category pass rate: when N≥2 (e.g., IQ with 3 tests).
+- For 100% (5/5, 4/4): show CI (e.g., 52–100%, 40–100%).
+
+---
+
+## 6. Improvement Tracking
+
+### Files Modified Table
+
+- Columns: File, Change, Status.
+- Status badges: Deployed, Updated, Created.
+- Include: `convex/agents/config.ts`, `realEstate.ts`, `toolsSummary.ts`, `actions.ts`, `tests/focused-test.cjs`, etc.
+
+### Next Steps Table
+
+- Columns: Priority, Task, Description.
+- Priority badges: High, Medium, Low.
+- Completed items: mark with "✅ Fixed" in description.
+- Include: Deep Property Extraction, IQ-003, Business Rules Tests, Timeout Handling.
+
+---
+
+## 7. Model Evaluation
+
+### Model Card Status
+
+- **best**: Best-performing model; border-left green.
+- **works**: Functional with caveats; border-left orange.
+- **failed**: Does not work; border-left red.
+
+### Required Info per Model
+
+- Model name (e.g., `openrouter/aurora-alpha`).
+- Status: Works, Tool Calls, Arabic, issues (e.g., mixed languages, no tools, empty responses).
+
+---
+
+## 8. Data Flow and Report Generation
+
+### Data Flow
+
+```
+focused-test.cjs --json → stdout (JSON)
+       ↓
+generate-test-report.ts (reads stdin or --input)
+       ↓
+test-results-report.html (template with placeholders)
+       ↓
+Output: -o file or stdout
+```
+
+### generate-test-report.ts Replacements
+
+When generating from JSON, the script must replace:
+- `testResults` array (for heatmap).
+- Highlight value, pass count, CI.
+- Stat boxes: total, passed, failed, category stats, CI.
+- Distribution chart labels and data.
+- Category bar chart and radar chart data.
+- Progress bar width.
+
+### focused-test.cjs JSON Schema
+
+```json
+{
+  "timestamp": "ISO8601",
+  "threadId": "string",
+  "total": 20,
+  "passCount": 18,
+  "passRate": 90,
+  "results": [{ "id", "category", "description", "pass", "details", "durationSeconds" }],
+  "durations": { "FMT-001": 12.3, ... }
+}
+```
+
+---
+
+## 9. Key Files
+
+| Purpose | Path |
+|---------|------|
+| Report HTML | `test-results-report.html` |
+| Report generator | `scripts/generate-test-report.ts` |
+| Focused tests | `tests/focused-test.cjs` |
+| Column tests runner | `scripts/run-column-tests.ts` |
+| Column test cases | `convex/agents/anan/testing/column_tests.ts` |
+| Agent config | `convex/agents/config.ts` |
+
+---
+
+## 10. Commands
+
+| Action | Command |
+|--------|---------|
+| Run focused tests (console) | `node tests/focused-test.cjs <thread_id>` |
+| Run focused tests (JSON) | `node tests/focused-test.cjs <thread_id> --json` |
+| Generate report from JSON | `... | bun run scripts/generate-test-report.ts -o test-results-report.html` |
+| Full report pipeline | `THREAD_ID=<id> npm run test:report` |
+| Run column tests | `bun run scripts/run-column-tests.ts` |

@@ -1,0 +1,1 @@
+{"root":["./agent.ts","./agentactions.ts","./banks.ts","./convex.config.ts","./http.ts","./partners.ts","./properties.test.ts","./properties.ts","./schema.ts","./seed.ts","./lib/providers.ts","./prompts/index.ts","./prompts/realestate.ts","./prompts/system.ts","./prompts/tools.ts"],"version":"5.9.3"}

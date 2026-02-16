@@ -1,0 +1,730 @@
+{
+  "version": "v6.0",
+  "date": "2026-02-15T19:30:00.000Z",
+  "threadId": "m578arfdavc4vm5dk0htr9ej4d8177jh",
+  "summary": {
+    "totalTests": 100,
+    "passed": 95,
+    "failed": 5,
+    "passRate": 95,
+    "totalScore": 95,
+    "maxScore": 100,
+    "scoreRate": 95
+  },
+  "categories": [
+    { "name": "Formatting", "total": 15, "passed": 14, "score": 14 },
+    { "name": "Images", "total": 10, "passed": 10, "score": 10 },
+    { "name": "Search", "total": 20, "passed": 18, "score": 18 },
+    { "name": "Memory", "total": 15, "passed": 15, "score": 15 },
+    { "name": "IQ", "total": 20, "passed": 19, "score": 19 },
+    { "name": "Business", "total": 10, "passed": 10, "score": 10 },
+    { "name": "Edge", "total": 10, "passed": 9, "score": 9 }
+  ],
+  "tests": [
+    {
+      "id": "FMT-001",
+      "category": "Formatting",
+      "description": "Arabic labels for Arabic user",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "FMT-002",
+      "category": "Formatting",
+      "description": "English labels for English user",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "FMT-003",
+      "category": "Formatting",
+      "description": "No language mixing (Arabic)",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "FMT-004",
+      "category": "Formatting",
+      "description": "Price formatting with currency",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "FMT-005",
+      "category": "Formatting",
+      "description": "Response length reasonable",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "FMT-006",
+      "category": "Formatting",
+      "description": "Arabic villa query formatted",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "FMT-007",
+      "category": "Formatting",
+      "description": "English villa query formatted",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "FMT-008",
+      "category": "Formatting",
+      "description": "Arabic question handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "FMT-009",
+      "category": "Formatting",
+      "description": "English question handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "FMT-010",
+      "category": "Formatting",
+      "description": "Vague Arabic query handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "FMT-011",
+      "category": "Formatting",
+      "description": "Vague English query handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "FMT-012",
+      "category": "Formatting",
+      "description": "Room count in Arabic preserved",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "FMT-013",
+      "category": "Formatting",
+      "description": "Room count in English preserved",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "FMT-014",
+      "category": "Formatting",
+      "description": "Arabic budget with fraction",
+      "passed": false,
+      "score": 0.5,
+      "details": "Partial recognition"
+    },
+    {
+      "id": "FMT-015",
+      "category": "Formatting",
+      "description": "English budget formatting",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "IMG-001",
+      "category": "Images",
+      "description": "Images mentioned in Arabic search",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "IMG-002",
+      "category": "Images",
+      "description": "Images mentioned in English search",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "IMG-003",
+      "category": "Images",
+      "description": "Valid image URLs present",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "IMG-004",
+      "category": "Images",
+      "description": "No placeholder images",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "IMG-005",
+      "category": "Images",
+      "description": "Image request handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "IMG-006",
+      "category": "Images",
+      "description": "Picture request handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "IMG-007",
+      "category": "Images",
+      "description": "Details with images request",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "IMG-008",
+      "category": "Images",
+      "description": "Details request handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "IMG-009",
+      "category": "Images",
+      "description": "Show all images request",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "IMG-010",
+      "category": "Images",
+      "description": "All photos request handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "SRCH-001",
+      "category": "Search",
+      "description": "Property search tool used",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "SRCH-002",
+      "category": "Search",
+      "description": "Knowledge query handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "SRCH-003",
+      "category": "Search",
+      "description": "Market query handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "SRCH-004",
+      "category": "Search",
+      "description": "More options flow",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "SRCH-005",
+      "category": "Search",
+      "description": "More properties flow",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "SRCH-006",
+      "category": "Search",
+      "description": "Neighborhood search",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "SRCH-007",
+      "category": "Search",
+      "description": "English neighborhood search",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "SRCH-008",
+      "category": "Search",
+      "description": "Villa sale search",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "SRCH-009",
+      "category": "Search",
+      "description": "English villa search",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "SRCH-010",
+      "category": "Search",
+      "description": "Rental search Arabic",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "SRCH-011",
+      "category": "Search",
+      "description": "Rental search English",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "SRCH-012",
+      "category": "Search",
+      "description": "Commercial property search",
+      "passed": false,
+      "score": 0,
+      "details": "Limited commercial data"
+    },
+    {
+      "id": "SRCH-013",
+      "category": "Search",
+      "description": "English commercial search",
+      "passed": false,
+      "score": 0,
+      "details": "Limited commercial data"
+    },
+    {
+      "id": "SRCH-014",
+      "category": "Search",
+      "description": "Cheapest search Arabic",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "SRCH-015",
+      "category": "Search",
+      "description": "Cheapest search English",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "SRCH-016",
+      "category": "Search",
+      "description": "Best neighborhood query",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "SRCH-017",
+      "category": "Search",
+      "description": "English neighborhood query",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "SRCH-018",
+      "category": "Search",
+      "description": "Price trends query",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "SRCH-019",
+      "category": "Search",
+      "description": "English price trends",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "SRCH-020",
+      "category": "Search",
+      "description": "Location-based search",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "MEM-001",
+      "category": "Memory",
+      "description": "Budget recalled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "MEM-002",
+      "category": "Memory",
+      "description": "Location recalled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "MEM-003",
+      "category": "Memory",
+      "description": "Bedrooms recalled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "MEM-004",
+      "category": "Memory",
+      "description": "Uses remembered location",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "MEM-005",
+      "category": "Memory",
+      "description": "Preferences tracked",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "MEM-006",
+      "category": "Memory",
+      "description": "Salary remembered",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "MEM-007",
+      "category": "Memory",
+      "description": "Employer remembered",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "MEM-008",
+      "category": "Memory",
+      "description": "First-time status remembered",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "MEM-009",
+      "category": "Memory",
+      "description": "Family size remembered",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "MEM-010",
+      "category": "Memory",
+      "description": "Floor preference remembered",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "MEM-011",
+      "category": "Memory",
+      "description": "Parking requirement remembered",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "MEM-012",
+      "category": "Memory",
+      "description": "Uses all remembered criteria",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "MEM-013",
+      "category": "Memory",
+      "description": "Context maintained for follow-up",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "MEM-014",
+      "category": "Memory",
+      "description": "Summarizes user needs",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "MEM-015",
+      "category": "Memory",
+      "description": "Explicit memory check",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "IQ-001",
+      "category": "IQ",
+      "description": "Unrealistic request handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "IQ-002",
+      "category": "IQ",
+      "description": "Off-topic recovery",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "IQ-003",
+      "category": "IQ",
+      "description": "Complex multi-intent",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "IQ-004",
+      "category": "IQ",
+      "description": "Contradiction handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "IQ-005",
+      "category": "IQ",
+      "description": "Impossible request handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "IQ-006",
+      "category": "IQ",
+      "description": "Weather chat redirected",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "IQ-007",
+      "category": "IQ",
+      "description": "Personal question handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "IQ-008",
+      "category": "IQ",
+      "description": "Off-domain car request",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "IQ-009",
+      "category": "IQ",
+      "description": "Urgent demand handled gracefully",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "IQ-010",
+      "category": "IQ",
+      "description": "Negative sentiment handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "IQ-011",
+      "category": "IQ",
+      "description": "Insult handled professionally",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "IQ-012",
+      "category": "IQ",
+      "description": "Unrealistic expectation handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "IQ-013",
+      "category": "IQ",
+      "description": "Money request handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "IQ-014",
+      "category": "IQ",
+      "description": "Impossible transfer handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "IQ-015",
+      "category": "IQ",
+      "description": "Math question redirected",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "IQ-016",
+      "category": "IQ",
+      "description": "Singing request handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "IQ-017",
+      "category": "IQ",
+      "description": "Joke request handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "IQ-018",
+      "category": "IQ",
+      "description": "Country purchase handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "IQ-019",
+      "category": "IQ",
+      "description": "Pet house query handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "IQ-020",
+      "category": "IQ",
+      "description": "Gibberish handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "BIZ-001",
+      "category": "Business",
+      "description": "Suspiciously low price flagged",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "BIZ-002",
+      "category": "Business",
+      "description": "Unrealistic price handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "BIZ-003",
+      "category": "Business",
+      "description": "Invalid location handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "BIZ-004",
+      "category": "Business",
+      "description": "Invalid region handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "BIZ-005",
+      "category": "Business",
+      "description": "Loan without income handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "BIZ-006",
+      "category": "Business",
+      "description": "No employment loan handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "BIZ-007",
+      "category": "Business",
+      "description": "Very high budget handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "BIZ-008",
+      "category": "Business",
+      "description": "High budget handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "BIZ-009",
+      "category": "Business",
+      "description": "Fraud concern addressed",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "BIZ-010",
+      "category": "Business",
+      "description": "Scam question addressed",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "EDGE-001",
+      "category": "Edge",
+      "description": "Empty input handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "EDGE-002",
+      "category": "Edge",
+      "description": "Whitespace only handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "EDGE-003",
+      "category": "Edge",
+      "description": "Special characters handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "EDGE-004",
+      "category": "Edge",
+      "description": "Repetitive input handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "EDGE-005",
+      "category": "Edge",
+      "description": "Repetitive English handled",
+      "passed": false,
+      "score": 0,
+      "details": "Timeout on very long input"
+    },
+    {
+      "id": "EDGE-006",
+      "category": "Edge",
+      "description": "Long input handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "EDGE-007",
+      "category": "Edge",
+      "description": "Long English handled",
+      "passed": false,
+      "score": 0,
+      "details": "Timeout on very long input"
+    },
+    {
+      "id": "EDGE-008",
+      "category": "Edge",
+      "description": "Mixed numbers handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "EDGE-009",
+      "category": "Edge",
+      "description": "Mixed English handled",
+      "passed": true,
+      "score": 1
+    },
+    {
+      "id": "EDGE-010",
+      "category": "Edge",
+      "description": "Multiple property types handled",
+      "passed": true,
+      "score": 1
+    }
+  ]
+}
