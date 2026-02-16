@@ -78,7 +78,7 @@ export function createWebTools(_appApi: AgentToolsApi) {
 
   const searchRealEstateInfo = createTool({
     description:
-      "Search for real estate market info, mortgage rates, best neighborhoods, regulations, area guides. Use for rates, trends, neighborhoods, regulations. Do NOT use for property listings (use smartPropertySearch instead).",
+      "Search for real estate market info. Use for 'what's the market like in X', 'market trends', 'market conditions', mortgage rates, best neighborhoods, regulations, area guides. Do NOT use for property listings (use smartPropertySearch instead).",
     args: z.object({
       query: z
         .string()
@@ -92,6 +92,9 @@ export function createWebTools(_appApi: AgentToolsApi) {
         .describe("Max number of results (default 5)"),
     }),
     handler: async (ctx, { query, num }) => {
+      // #region agent log
+      fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/agents/anan/tools/web.ts:searchRealEstateInfo',message:'tool invoked',data:{tool:'searchRealEstateInfo',queryPreview:String(query).slice(0,60),queryLen:query.length},hypothesisId:'agent_tool_searchRealEstateInfo',timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       debugLog("tools.searchRealEstateInfo", "start", { query, num });
       const shapedQuery = shapeRealEstateQuery(query);
       try {

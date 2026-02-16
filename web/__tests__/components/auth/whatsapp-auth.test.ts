@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatSeconds, normalizePhone, MAX_PHONE_DIGITS, MIN_PHONE_DIGITS } from "./whatsapp-auth.utils";
+import { formatSeconds, normalizePhone, MAX_PHONE_DIGITS, MIN_PHONE_DIGITS } from "../../../components/auth/whatsapp-auth.utils";
 
 describe("whatsapp-auth helpers", () => {
   it("normalizes phone numbers to digits", () => {

@@ -1,14 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import {
-  Home,
-  Building2,
-  Landmark,
-  ChevronLeft,
-  Sparkles,
-  Calculator,
-} from "lucide-react";
+import { Home, Building2, Calculator, Landmark, ChevronLeft } from "lucide-react";
 
 interface WelcomeScreenProps {
   onSuggestionClick: (text: string) => void;
@@ -19,107 +12,82 @@ const suggestions = [
   {
     text: "عرض عقارات للبيع في الرياض",
     icon: Home,
-    color: "from-blue-500/20 to-blue-600/10",
+    gradient: "from-blue-500/15 to-blue-600/5",
+    iconColor: "text-blue-400",
   },
   {
     text: "عقارات للإيجار بجدة",
     icon: Building2,
-    color: "from-emerald-500/20 to-emerald-600/10",
+    gradient: "from-emerald-500/15 to-emerald-600/5",
+    iconColor: "text-emerald-400",
   },
   {
     text: "احسب قرضك العقاري",
     icon: Calculator,
-    color: "from-violet-500/20 to-violet-600/10",
+    gradient: "from-violet-500/15 to-violet-600/5",
+    iconColor: "text-violet-400",
   },
   {
     text: "ما هي أفضل البنوك للقرض؟",
     icon: Landmark,
-    color: "from-amber-500/20 to-amber-600/10",
+    gradient: "from-amber-500/15 to-amber-600/5",
+    iconColor: "text-amber-400",
   },
 ];
 
-const container = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: { staggerChildren: 0.1 },
-  },
-};
-
-const item = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0 },
-};
-
 export function WelcomeScreen({
   onSuggestionClick,
-  userName = "هناك",
+  userName,
 }: WelcomeScreenProps) {
+  const greeting = userName ? `أهلاً ${userName}` : "أهلاً بك";
+
   return (
-    <div
-      className="flex h-full w-full flex-col items-center justify-center py-6 sm:py-10 px-4 sm:px-6"
-      dir="rtl"
-    >
+    <div className="flex h-full w-full flex-col items-center justify-center py-8 px-4" dir="rtl">
+      {/* Greeting */}
       <motion.div
-        initial={{ opacity: 0, y: -20 }}
+        initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="text-center mb-10"
+        transition={{ duration: 0.4, ease: "easeOut" }}
+        className="text-center mb-8"
       >
-        <div className="relative inline-block mb-4">
-          <div className="absolute inset-0 bg-primary/20 blur-3xl rounded-full" />
-          <div className="relative flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-primary/70 shadow-xl shadow-primary/20">
-            <Sparkles className="h-10 w-10 text-primary-foreground" />
-          </div>
-        </div>
-        <h1 className="text-3xl sm:text-4xl font-bold text-foreground mb-2">
-          مرحباً، {userName}
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">
+          {greeting}
         </h1>
-        <p className="text-lg text-muted-foreground">
-          كيف يمكنني مساعدتك اليوم؟
+        <p className="text-base text-muted-foreground">
+          كيف أقدر أساعدك اليوم؟
         </p>
       </motion.div>
 
+      {/* Suggestion cards */}
       <motion.div
-        variants={container}
-        initial="hidden"
-        animate="show"
-        className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full max-w-2xl"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.15, duration: 0.4 }}
+        className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full max-w-xl"
       >
         {suggestions.map((suggestion, i) => {
           const Icon = suggestion.icon;
           return (
             <motion.button
               key={i}
-              variants={item}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 + i * 0.06, duration: 0.35 }}
               type="button"
               onClick={() => onSuggestionClick(suggestion.text)}
-              className="group relative flex items-center gap-4 rounded-2xl border border-border/50 bg-card/50 backdrop-blur-sm px-4 py-4 text-right transition-all duration-300 hover:border-primary/30 hover:bg-card hover:shadow-lg hover:shadow-primary/5"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              className="group relative flex items-center gap-3 rounded-xl border border-border/40 bg-card/40 px-4 py-3.5 text-right transition-all duration-200 hover:border-primary/25 hover:bg-card/60"
             >
-              <div
-                className={`flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br ${suggestion.color} transition-transform group-hover:scale-110`}
-              >
-                <Icon className="h-5 w-5 text-foreground/80" />
+              <div className={`flex items-center justify-center w-9 h-9 rounded-lg bg-gradient-to-br ${suggestion.gradient}`}>
+                <Icon className={`h-4.5 w-4.5 ${suggestion.iconColor}`} />
               </div>
-              <span className="flex-1 text-sm font-medium text-foreground/90 group-hover:text-foreground transition-colors">
+              <span className="flex-1 text-[13px] font-medium text-foreground/80 group-hover:text-foreground transition-colors">
                 {suggestion.text}
               </span>
-              <ChevronLeft className="h-4 w-4 text-muted-foreground/50 group-hover:text-primary group-hover:-translate-x-1 transition-all" />
+              <ChevronLeft className="h-3.5 w-3.5 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors" />
             </motion.button>
           );
         })}
       </motion.div>
-
-      <motion.p
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.8 }}
-        className="mt-8 text-xs text-muted-foreground/50"
-      >
-        Powered by عنان AI
-      </motion.p>
     </div>
   );
 }

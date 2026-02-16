@@ -1,15 +1,22 @@
+/**
+ * Agent debug logging. Only logs when AGENT_DEBUG_LOGS is truthy (1/true/yes/on)
+ * and NODE_ENV is not "production".
+ * For Convex dev: set AGENT_DEBUG_LOGS in the Convex dashboard (Settings → Environment Variables).
+ */
 export type AgentDebugPayload = Record<string, unknown>;
 
 function isTruthy(value: string | undefined): boolean {
-  if (!value) return false;
+  if (value == null || typeof value !== "string") return false;
   const normalized = value.trim().toLowerCase();
   return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
 }
 
 export function isAgentDebugEnabled(): boolean {
-  const env = process.env.NODE_ENV ?? "development";
+  const env = typeof process !== "undefined" && process.env ? process.env.NODE_ENV : undefined;
   if (env === "production") return false;
-  return isTruthy(process.env.AGENT_DEBUG_LOGS);
+  const flag =
+    typeof process !== "undefined" && process.env ? process.env.AGENT_DEBUG_LOGS : undefined;
+  return isTruthy(flag);
 }
 
 export function debugLog(scope: string, event: string, payload: AgentDebugPayload = {}): void {

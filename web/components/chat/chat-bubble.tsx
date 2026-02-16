@@ -40,7 +40,7 @@ function DetailsRow({
         "flex items-center gap-2 mt-1.5 px-1 text-[10px] text-muted-foreground/80",
         alignEnd && "justify-end",
         showCopyOnHover &&
-          "opacity-0 group-hover:opacity-100 transition-opacity",
+        "opacity-0 group-hover:opacity-100 transition-opacity",
       )}
     >
       <span>{timestamp}</span>
@@ -75,19 +75,19 @@ export const ChatBubble = memo(
       return (
         <article
           dir="rtl"
-          className="w-full group py-1.5"
+          className="w-full group py-3"
           style={{ scrollMarginBottom: "16px" }}
           role="article"
         >
           <div className="w-full flex flex-col gap-3">
             {contentStr ? (
-              <div className="w-full max-w-prose prose prose-sm sm:prose-base max-w-none dark:prose-invert prose-p:leading-[1.7] prose-headings:font-bold text-foreground">
+              <div className="w-full max-w-prose prose prose-sm sm:prose-base !max-w-none dark:prose-invert prose-p:leading-relaxed prose-headings:font-bold text-foreground/90">
                 <MarkdownContent content={contentStr} />
               </div>
             ) : null}
 
             {type && type !== "text" && data != null ? (
-              <div className="w-full mt-1">
+              <div className="w-full mt-2">
                 {type === "coupon" ? (
                   <CouponCard
                     coupon={
@@ -114,12 +114,12 @@ export const ChatBubble = memo(
     return (
       <div
         dir="rtl"
-        className="w-full group py-1.5 flex justify-end"
+        className="w-full group py-2 flex justify-end"
         style={{ scrollMarginBottom: "16px" }}
         role="group"
       >
-        <div className="flex flex-col items-end min-w-0 max-w-[90%] sm:max-w-[80%]">
-          <div className="px-4 py-3 text-[15px] sm:text-base bg-primary text-primary-foreground rounded-2xl rounded-tr-sm leading-relaxed break-words shadow-sm">
+        <div className="flex flex-col items-end min-w-0 max-w-[85%] sm:max-w-[75%]">
+          <div className="px-4 py-2.5 text-[15px] sm:text-[16px] bg-primary/95 text-primary-foreground rounded-[1.25rem] rounded-tr-none leading-relaxed break-words shadow-sm">
             {contentStr ? (
               <p className="whitespace-pre-wrap text-right leading-relaxed break-words overflow-wrap-anywhere">
                 {contentStr}
@@ -137,7 +137,7 @@ export const ChatBubble = memo(
       </div>
     );
   },
-  (prevProps, nextProps) => {
+  (prevProps: ChatBubbleProps, nextProps: ChatBubbleProps) => {
     return (
       prevProps.message.id === nextProps.message.id &&
       prevProps.message.content === nextProps.message.content

@@ -154,3 +154,9 @@ body {
   -webkit-background-clip: text;
   color: transparent;
 }
+
+/* Landing page utilities */
+.bg-gradient-radial {
+  background: radial-gradient(circle, var(--tw-gradient-stops));
+}
+

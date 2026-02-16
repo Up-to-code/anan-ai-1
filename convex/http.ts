@@ -48,6 +48,9 @@ http.route({
   path: "/api/partner/properties",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/http.ts:api/partner/properties',message:'http partner properties entry',data:{func:'httpPartnerProperties',method:request.method},hypothesisId:'F8',timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     const authHeader = request.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(
@@ -141,6 +144,9 @@ http.route({
   path: "/api/chat",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/http.ts:api/chat',message:'http api/chat entry',data:{func:'httpApiChat',method:request.method},hypothesisId:'F19',timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     // Rate limit by IP or user ID
     const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
     const rateLimitKey = `chat:${clientIp}`;
@@ -163,11 +169,11 @@ http.route({
     }
     
     const body = await request.json().catch(() => ({}));
-    const { threadId, message, userId: providedUserId } = body as {
+    const { threadId, message } = body as {
       threadId?: string;
       message?: string;
-      userId?: string;
     };
+    // Part E: Do not trust client-provided userId; backend resolves from auth or generates anon-uuid.
     if (!message || typeof message !== "string") {
       return new Response(JSON.stringify({ error: "message required" }), {
         status: 400,
@@ -196,11 +202,10 @@ http.route({
 
       let tid = threadId;
       if (!tid) {
-        // For authenticated users, userId comes from auth (providedUserId ignored)
-        // For anonymous users, use providedUserId or let createThreadAction generate unique ID
+        // Pass only server-resolved auth user id when present; never pass client-provided userId for anonymous.
         const { threadId: newId } = await ctx.runMutation(
           api.agents.actions.createThreadAction,
-          { userId: authUser ? undefined : providedUserId }
+          authUser ? { userId: authUser.id } : {}
         );
         tid = newId;
       }
@@ -224,12 +229,38 @@ http.route({
 
 /**
  * Test helper API: returns generated reply payload synchronously.
- * Useful for curl-based QA in local/dev environments.
+ * Part A6: Admin only; 404 in production.
  */
 http.route({
   path: "/api/test/agent-reply",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
+    if (process.env.NODE_ENV === "production") {
+      return new Response(JSON.stringify({ error: "Not available in production" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    const auth = createAuth(ctx);
+    let session: { user: { id: string } } | null = null;
+    try {
+      session = await auth.api.getSession({ headers: request.headers });
+    } catch {
+      // no session
+    }
+    if (!session?.user?.id) {
+      return new Response(JSON.stringify({ error: "Authentication required" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    const isAdmin = await ctx.runQuery(api.auth.isUserAdmin, { userId: session.user.id });
+    if (!isAdmin) {
+      return new Response(JSON.stringify({ error: "Admin access required" }), {
+        status: 403,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
     const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
     const rateLimitKey = `test-agent-reply:${clientIp}`;
     const rateLimit = checkRateLimit(rateLimitKey, 30, 60000);
@@ -289,11 +320,37 @@ http.route({
   }),
 });
 
-/** Column test runner: POST body { userId?, channel? }. Runs all column tests, judges, returns Pass/Fail and improvement suggestions. */
+/** Column test runner: POST body { userId?, channel? }. Part A6: Admin only; 404 in production. */
 http.route({
   path: "/api/test/column",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
+    if (process.env.NODE_ENV === "production") {
+      return new Response(JSON.stringify({ error: "Not available in production" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    const auth = createAuth(ctx);
+    let session: { user: { id: string } } | null = null;
+    try {
+      session = await auth.api.getSession({ headers: request.headers });
+    } catch {
+      // no session
+    }
+    if (!session?.user?.id) {
+      return new Response(JSON.stringify({ error: "Authentication required" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    const isAdmin = await ctx.runQuery(api.auth.isUserAdmin, { userId: session.user.id });
+    if (!isAdmin) {
+      return new Response(JSON.stringify({ error: "Admin access required" }), {
+        status: 403,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
     const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
     const rateLimitKey = `test-column:${clientIp}`;
     const rateLimit = checkRateLimit(rateLimitKey, 5, 120000); // 5 runs per 2 min

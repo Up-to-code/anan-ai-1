@@ -26,7 +26,7 @@ import { buildAgentInstructions } from "./anan/instructions";
 import { createRealEstateAgent } from "../features/agent/factory";
 import { formatForChannel, type OfferBlock } from "../channels/formatters";
 import { authComponent } from "../auth";
-import { requireAdmin } from "../lib/auth";
+import { optionalAuth, requireAdmin } from "../lib/auth";
 import {
   detectPreferredLanguage,
   isLikelyLanguageMismatch,
@@ -43,7 +43,7 @@ import {
 const realEstateAgent = createRealEstateAgent({
   properties: {
     search: api.services.properties.search,
-    getRecentSearchCount: api.services.properties.getRecentSearchCount,
+    getRecentSearchCount: internal.services.properties.getRecentSearchCountInternal,
     logSearchEvent: api.services.properties.logSearchEvent,
     logKnowledgeResearch: api.services.properties.logKnowledgeResearch,
     getLastSearchContext: api.services.properties.getLastSearchContext,
@@ -57,15 +57,15 @@ const realEstateAgent = createRealEstateAgent({
   },
   partners: { list: api.services.partners.list },
   userProfiles: {
-    getByUserId: api.services.users.getByUserId,
-    getRecentMessageCount: api.services.users.getRecentMessageCount,
-    upsert: api.services.users.upsert,
+    getByUserId: internal.services.users.getByUserIdInternal,
+    getRecentMessageCount: internal.services.users.getRecentMessageCountInternal,
+    upsert: internal.services.users.upsertInternal,
   },
   knowledgePages: {
     getBySlug: api.services.content.getBySlug,
     list: api.services.content.list,
   },
-  handoffs: { create: api.services.content.create },
+  handoffs: { create: internal.services.content.createHandoffInternal },
   orders: { createDraftFromAgent: api.admin.orders.createDraftOrderFromAgent },
 });
 
@@ -83,7 +83,7 @@ async function logMessageSentActivity(
 ): Promise<void> {
   if (!params.userId) return;
   try {
-    await ctx.runMutation(api.services.users.logActivity, {
+    await ctx.runMutation(internal.services.users.logActivityInternal, {
       userId: params.userId,
       action: "message_sent",
       channel: params.channel,
@@ -93,6 +93,16 @@ async function logMessageSentActivity(
     console.error("logMessageSentActivity error:", error);
   }
 }
+
+/** Internal: assert current identity is admin. Used by actions that need admin check. */
+export const requireAdminMutation = internalMutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+    return null;
+  },
+});
 
 export const logAgentTrace = internalMutation({
   args: {
@@ -199,6 +209,9 @@ export const createThreadAction = mutation({
     title: v.optional(v.string()),
   },
   handler: async (ctx, { userId: providedUserId, title }) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/agents/actions.ts:createThreadAction',message:'createThreadAction entry',data:{func:'createThreadAction',hasTitle:Boolean(title),hasProvidedUserId:Boolean(providedUserId)},hypothesisId:'F1',timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     let authUser: Awaited<ReturnType<typeof authComponent.getAuthUser>> | null =
       null;
     try {
@@ -244,6 +257,9 @@ export const sendMessage = mutation({
     ),
   },
   handler: async (ctx, { threadId, body, channel }) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/agents/actions.ts:sendMessage',message:'sendMessage entry',data:{func:'sendMessage',threadId,channel,bodyLength:body.length},hypothesisId:'F2',timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     debugLog("actions.sendMessage", "start", {
       threadId,
       channel,
@@ -297,6 +313,9 @@ export const generateResponse = internalAction({
     ),
   },
   handler: async (ctx, { threadId, promptMessageId, channel }) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/agents/actions.ts:generateResponse',message:'generateResponse entry',data:{func:'generateResponse',threadId,promptMessageId,channel},hypothesisId:'F3',timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     debugLog("actions.generateResponse", "start", {
       threadId,
       promptMessageId,
@@ -353,7 +372,7 @@ export const generateResponse = internalAction({
 });
 
 const AGENT_FALLBACK_MESSAGE =
-  "I'm sorry, I ran into an issue. Please try again or rephrase your question.";
+  "عذراً، واجهت مشكلة تقنية. نطور الخدمة ونصلح الأمور. جرّب مرة ثانية. 🙏 / Sorry, I ran into an issue. We're improving things for you. Please try again. 🙏";
 
 export const generateReplyAndReturnText = internalAction({
   args: {
@@ -373,6 +392,10 @@ export const generateReplyAndReturnText = internalAction({
     offerBlocks?: OfferBlock[];
     threadId: string;
   }> => {
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/agents/actions.ts:generateReplyAndReturnText',message:'generateReplyAndReturnText entry',data:{func:'generateReplyAndReturnText',userId,messageLength:message.length,channel:channelArg},hypothesisId:'F12',timestamp:Date.now()})}).catch(()=>{});
+    fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/agents/actions.ts:generateReplyAndReturnText',message:'agent message received',data:{messagePreview:String(message).slice(0,80),messageLength:message.length},hypothesisId:'agent_msg',timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     debugLog("actions.generateReplyAndReturnText", "start", {
       userId,
       channel: channelArg ?? "app",
@@ -412,7 +435,7 @@ export const generateReplyAndReturnText = internalAction({
       });
 
       const memoryContext = userId
-        ? await ctx.runQuery(api.services.memory.getRelevantContext, {
+        ? await ctx.runQuery(internal.services.memory.getRelevantContextInternal, {
             userId,
             query: message,
           })
@@ -579,6 +602,9 @@ export const getThreadMessages = query({
     allowAdmin: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/agents/actions.ts:getThreadMessages',message:'getThreadMessages entry',data:{func:'getThreadMessages',threadId:args.threadId,allowAdmin:args.allowAdmin},hypothesisId:'F11',timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     const thread = await ctx.runQuery(components.agent.threads.getThread, {
       threadId: args.threadId,
     });
@@ -619,6 +645,10 @@ export const testAgent = action({
     ctx,
     { message, userId = "test-user" },
   ): Promise<{ question: string; reply: string; threadId: string }> => {
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/agents/actions.ts:testAgent',message:'testAgent entry',data:{func:'testAgent',messageLen:message.length,userId},hypothesisId:'F13',timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+    await ctx.runMutation(internal.agents.actions.requireAdminMutation, {});
     const { text, threadId } = await ctx.runAction(
       internal.agents.actions.generateReplyAndReturnText,
       { userId, message },
@@ -633,6 +663,7 @@ export const testAgentMultiTurn = action({
     ctx,
     { userId, messages },
   ): Promise<{ replies: string[] }> => {
+    await ctx.runMutation(internal.agents.actions.requireAdminMutation, {});
     const replies: string[] = [];
     for (const message of messages) {
       const { text } = await ctx.runAction(
@@ -650,7 +681,12 @@ export const listThreads = query({
     userId: v.optional(v.string()),
     paginationOpts: paginationOptsValidator,
   },
-  handler: async (ctx, { userId, paginationOpts }) => {
+  handler: async (ctx, { userId: _clientUserId, paginationOpts }) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/agents/actions.ts:listThreads',message:'listThreads entry',data:{func:'listThreads',hasPaginationOpts:Boolean(paginationOpts)},hypothesisId:'F10',timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+    const authUserId = await optionalAuth(ctx);
+    const userId = authUserId ?? undefined;
     return ctx.runQuery(components.agent.threads.listThreadsByUserId, {
       userId,
       paginationOpts,
@@ -664,7 +700,9 @@ export const searchThreads = query({
     query: v.string(),
     limit: v.optional(v.number()),
   },
-  handler: async (ctx, { userId, query: searchQuery, limit = 50 }) => {
+  handler: async (ctx, { userId: _clientUserId, query: searchQuery, limit = 50 }) => {
+    const authUserId = await optionalAuth(ctx);
+    const userId = authUserId ?? undefined;
     return ctx.runQuery(components.agent.threads.searchThreadTitles, {
       userId,
       query: searchQuery,
@@ -673,20 +711,17 @@ export const searchThreads = query({
   },
 });
 
-export const deleteThread = action({
-  args: { threadId: v.string(), userId: v.optional(v.string()) },
-  handler: async (ctx, { threadId, userId: providedUserId }) => {
-    let userId: string;
-    try {
-      const authUser = await authComponent.getAuthUser(ctx);
-      userId =
-        authUser.userId && authUser.userId !== null
-          ? authUser.userId
-          : String(authUser._id);
-    } catch {
-      if (providedUserId) userId = providedUserId;
-      else throw new Error("Authentication required to delete thread");
-    }
+export const deleteThread = mutation({
+  args: { threadId: v.string() },
+  handler: async (ctx, { threadId }) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/agents/actions.ts:deleteThread',message:'deleteThread entry',data:{func:'deleteThread',threadId},hypothesisId:'F14',timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+    const authUser = await authComponent.getAuthUser(ctx);
+    const userId =
+      authUser.userId && authUser.userId !== null
+        ? authUser.userId
+        : String(authUser._id);
 
     const threads = await ctx.runQuery(
       components.agent.threads.listThreadsByUserId,
@@ -710,6 +745,7 @@ export const deleteThread = action({
 export const listUsersWithThreads = query({
   args: { paginationOpts: paginationOptsValidator },
   handler: async (ctx, { paginationOpts }) => {
+    await requireAdmin(ctx);
     return ctx.runQuery(components.agent.users.listUsersWithThreads, {
       paginationOpts,
     });

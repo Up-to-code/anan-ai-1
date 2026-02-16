@@ -3,7 +3,7 @@
  * @vitest-environment node
  */
 import { describe, expect, test } from "vitest";
-import { formatNumber, formatDate, formatDateTime, getFormatLocale } from "./locale";
+import { formatNumber, formatDate, formatDateTime, getFormatLocale } from "../../lib/locale";
 
 describe("locale helpers", () => {
   test("formatNumber formats with Arabic locale", () => {

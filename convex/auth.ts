@@ -8,7 +8,9 @@ import { internal } from "./_generated/api";
 import { DataModel } from "./_generated/dataModel";
 
 import { query } from "./_generated/server";
+import { v } from "convex/values";
 import { betterAuth } from "better-auth/minimal";
+import { ROLE_ADMIN } from "./roles";
 import { phoneNumber } from "better-auth/plugins/phone-number";
 import authConfig from "./auth.config";
 
@@ -77,10 +79,42 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
 export const getCurrentUser = query({
   args: {},
   handler: async (ctx) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/auth.ts:getCurrentUser',message:'getCurrentUser entry',data:{func:'getCurrentUser'},hypothesisId:'F5',timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     try {
       return await authComponent.getAuthUser(ctx);
     } catch {
       return null;
     }
+  },
+});
+
+/** Part A: Check if a user (e.g. from session) is admin. Used by HTTP test routes. */
+export const isUserAdmin = query({
+  args: { userId: v.string() },
+  returns: v.boolean(),
+  handler: async (ctx, { userId }) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/auth.ts:isUserAdmin',message:'isUserAdmin entry',data:{func:'isUserAdmin',userIdLen:userId.length},hypothesisId:'F15',timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+    const legacyAdmin = await ctx.db
+      .query("adminUsers")
+      .withIndex("userId", (q) => q.eq("userId", userId))
+      .first();
+    if (legacyAdmin) return true;
+    const verified = await ctx.db
+      .query("verifiedPhones")
+      .withIndex("userId", (q) => q.eq("userId", userId))
+      .first();
+    if (verified) {
+      const normalized = verified.phoneNumber.replace(/\D/g, "");
+      const roleRow = await ctx.db
+        .query("userRoles")
+        .withIndex("phoneNumber", (q) => q.eq("phoneNumber", normalized))
+        .first();
+      if (roleRow?.role === ROLE_ADMIN) return true;
+    }
+    return false;
   },
 });

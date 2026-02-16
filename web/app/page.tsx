@@ -7,12 +7,8 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    router.push("/chat/new");
+    router.replace("/chat/new");
   }, [router]);
 
-  return (
-    <div className="flex items-center justify-center h-screen">
-      <div className="text-muted-foreground">جاري التوجيه...</div>
-    </div>
-  );
+  return null;
 }

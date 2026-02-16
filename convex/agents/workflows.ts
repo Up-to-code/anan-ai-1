@@ -53,6 +53,9 @@ export const startGenerateResponseWorkflow = internalAction({
     ),
   },
   handler: async (ctx, args): Promise<string> => {
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/agents/workflows.ts:startGenerateResponseWorkflow',message:'startGenerateResponseWorkflow entry',data:{func:'startGenerateResponseWorkflow',threadId:args.threadId,channel:args.channel},hypothesisId:'F4',timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     const wf = internal.agents.workflows.generateResponseWorkflow;
     return workflow.start(ctx, wf, args);
   },

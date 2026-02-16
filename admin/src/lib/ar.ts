@@ -18,6 +18,12 @@ export const ar = {
   knowledge: "المعرفة",
   system: "النظام",
   menu: "القائمة",
+  navMain: "الرئيسية",
+  navTeam: "فريق العمل",
+  navSales: "المبيعات والطلبات",
+  navData: "إدارة البيانات",
+  navContent: "المحتوى والمراجعات",
+  navSystem: "الإعدادات والنظام",
 
   // Mode Switcher
   turboMode: "تحكم سريع",
@@ -27,7 +33,18 @@ export const ar = {
 
   // Agent Chat
   agentWelcome: "مرحباً! أنا مساعدك الذكي. كيف يمكنني مساعدتك اليوم؟",
+  agentWelcomeWithName: "مرحباً، {name}. كيف يمكنني مساعدتك؟",
+  agentWelcomeDefault: "مرحباً. كيف يمكنني مساعدتك؟",
   agentPlaceholder: "اكتب رسالتك هنا...",
+  agentGreetingPersonalized: "كيف أساعدك،",
+  agentGreetingDefault: "كيف أقدر أساعدك اليوم؟",
+  agentChipCreate: "إنشاء",
+  agentChipExplore: "استكشاف",
+  agentChipProperties: "عقارات",
+  agentChipReview: "مراجعة",
+  agentBadge: "وكيل ANAN",
+  agentName: "المساعد الذكي",
+  agentPendingActionsLabel: "الإجراءات المعلقة",
   agentThinking: "جاري التفكير...",
   agentSend: "إرسال",
   agentNewChat: "محادثة جديدة",
@@ -37,6 +54,20 @@ export const ar = {
   createDeveloperSuggestion: "إضافة مطور جديد",
   listPropertiesSuggestion: "عرض العقارات",
   listBanksSuggestion: "عرض البنوك",
+  sendFailed: "فشل إرسال الرسالة",
+  createThreadFailed: "فشل إنشاء المحادثة",
+  deleteThreadFailed: "فشل حذف المحادثة",
+  saveEditsFailed: "فشل حفظ التعديلات",
+  improveTextFailed: "فشل تحسين الصياغة",
+  applyEditFailed: "فشل تطبيق التعديل",
+  confirmActionFailed: "فشل التأكيد",
+  cancelActionFailed: "فشل الإلغاء",
+  uploadMediaFailed: "فشل رفع الملفات",
+  noRewritableField: "لا يوجد حقل نصي مناسب لإعادة الصياغة.",
+  searchSources: "مصادر البحث",
+  resultsFound: "نتائج موجودة",
+  cachedFrom: "مخزنة من",
+  agentErrorFallback: "حدث خطأ غير متوقع في المحادثة. يمكنك المحاولة مرة أخرى أو إعادة تحميل الصفحة.",
 
   // Actions
   create: "إضافة",
@@ -53,6 +84,7 @@ export const ar = {
   import: "استيراد",
   refresh: "تحديث",
   view: "عرض",
+  viewDetails: "عرض التفاصيل",
   close: "إغلاق",
   confirm: "تأكيد",
   submit: "إرسال",
@@ -91,6 +123,16 @@ export const ar = {
   addPhone: "إضافة رقم",
   user: "مستخدم",
   admin: "مشرف",
+  team: "الفريق",
+  teamDesc: "إدارة أعضاء الفريق الذين يمكنهم استخدام لوحة التحكم. يمكنك تعديل دور كل عضو فقط.",
+  teamMembers: "أعضاء الفريق",
+  noTeamMembers: "لا يوجد أعضاء في الفريق",
+  teamEmptyDesc: "لم تتم إضافة أي أعضاء بعد. أضف مشرفين عبر صفحة المستخدمين.",
+  legacyAdmin: "مشرف قديم",
+  agentChat: "وكيل AI",
+  myStats: "إحصائياتي",
+  myThreads: "محادثاتي",
+  myActivity: "نشاطي",
 
   // Fields
   name: "الاسم",
@@ -165,6 +207,7 @@ export const ar = {
   closed_lost: "تم الإغلاق (خسارة)",
 
   all: "الكل",
+  filterBy: "تصفية حسب",
 
   // Empty / messages
   noResults: "لا توجد نتائج",

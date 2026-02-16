@@ -32,6 +32,10 @@ export interface UserProfileCreateInput {
   planType?: "free" | "paid";
   planExpiresAt?: number;
   chatLimit?: number;
+  location?: string;
+  avatar?: string;
+  tokensUsed?: number;
+  tokensLimit?: number;
 }
 
 export interface UserProfileUpdateInput {
@@ -50,6 +54,8 @@ export interface UserProfileUpdateInput {
   planType?: "free" | "paid";
   planExpiresAt?: number;
   chatLimit?: number;
+  location?: string;
+  avatar?: string;
 }
 
 // ============================================================================
@@ -85,6 +91,10 @@ export const userProfileCreateArgsValidator = {
   planType: v.optional(v.union(v.literal("free"), v.literal("paid"))),
   planExpiresAt: v.optional(v.number()),
   chatLimit: v.optional(v.number()),
+  location: v.optional(v.string()),
+  avatar: v.optional(v.string()),
+  tokensUsed: v.optional(v.number()),
+  tokensLimit: v.optional(v.number()),
 };
 
 export const userProfileUpdateArgsValidator = {
@@ -103,6 +113,8 @@ export const userProfileUpdateArgsValidator = {
   planType: v.optional(v.union(v.literal("free"), v.literal("paid"))),
   planExpiresAt: v.optional(v.number()),
   chatLimit: v.optional(v.number()),
+  location: v.optional(v.string()),
+  avatar: v.optional(v.string()),
 };
 
 // ============================================================================
@@ -129,6 +141,10 @@ export const userProfileReturnValidator = v.object({
   planType: v.optional(v.union(v.literal("free"), v.literal("paid"))),
   planExpiresAt: v.optional(v.number()),
   chatLimit: v.optional(v.number()),
+  location: v.optional(v.string()),
+  avatar: v.optional(v.string()),
+  tokensUsed: v.optional(v.number()),
+  tokensLimit: v.optional(v.number()),
 });
 
 export const userProfileListReturnValidator = v.array(userProfileReturnValidator);

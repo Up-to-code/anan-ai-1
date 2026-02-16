@@ -23,7 +23,10 @@
     "test:once": "vitest run",
     "test:agent": "vitest run convex/agent.integration.test.ts --reporter=verbose",
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
-    "test:coverage": "vitest run --coverage --coverage.reporter=text"
+    "test:coverage": "vitest run --coverage --coverage.reporter=text",
+    "test:production:smoke": "bun run scripts/smoke-test-production.ts",
+    "deploy:convex": "bun run scripts/deploy-convex-to-production.ts",
+    "deploy:convex:and-test": "npm run deploy:convex && npm run typecheck && npm run test:once && npm run test:production:smoke"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.2",

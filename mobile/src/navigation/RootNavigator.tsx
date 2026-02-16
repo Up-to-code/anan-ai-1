@@ -1,7 +1,13 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { TouchableOpacity } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
+// #region agent log
+const DEBUG_INGEST = "http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3";
+function debugLog(location: string, message: string, data?: Record<string, unknown>) {
+  fetch(DEBUG_INGEST, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ location, message, data: data ?? {}, timestamp: Date.now() }) }).catch(() => {});
+}
+// #endregion
 import { useTheme } from "../contexts/ThemeContext";
 import { getTheme } from "../theme";
 import { ChatHomeScreen } from "../screens/ChatHomeScreen";
@@ -58,6 +64,9 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function RootNavigator() {
   const { theme: themeMode, toggleTheme } = useTheme();
+  useEffect(() => {
+    debugLog("RootNavigator.tsx:mount", "RootNavigator mounted", { theme: themeMode });
+  }, [themeMode]);
   const theme = getTheme(themeMode);
   const { colors, spacing } = theme;
 

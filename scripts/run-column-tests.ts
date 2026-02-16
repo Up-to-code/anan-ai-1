@@ -12,7 +12,7 @@
  */
 
 const CONVEX_SITE_URL =
-  process.env.CONVEX_SITE_URL ?? process.env.VITE_CONVEX_SITE_URL ?? "https://outstanding-mastiff-930.convex.site";
+  process.env.CONVEX_SITE_URL ?? process.env.VITE_CONVEX_SITE_URL ?? "https://intent-dolphin-324.convex.site";
 const TEST_CHANNEL = (process.env.CHANNEL as "whatsapp" | "app" | "web" | undefined) ?? "whatsapp";
 const TEST_CASE_IDS = process.env.TEST_CASE_IDS
   ? process.env.TEST_CASE_IDS.split(",").map((id) => id.trim()).filter(Boolean)

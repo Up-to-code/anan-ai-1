@@ -29,10 +29,12 @@ const log = createLogger("ChatInterface");
 
 interface ChatInterfaceProps {
   conversationId?: string | null;
+  initialMessage?: string;
 }
 
 export function ChatInterface({
   conversationId: propConversationId = null,
+  initialMessage,
 }: ChatInterfaceProps) {
   const router = useRouter();
   const threadId = propConversationId;
@@ -234,6 +236,20 @@ export function ChatInterface({
     }
   };
 
+  // Auto-send initial message from hero chat
+  const initialMessageSentRef = useRef(false);
+  useEffect(() => {
+    if (initialMessage && !initialMessageSentRef.current) {
+      initialMessageSentRef.current = true;
+      // Small delay to ensure component is mounted
+      const timer = setTimeout(() => {
+        handleSend(initialMessage);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialMessage]);
+
   // Track when streaming starts to transition from thinking to writing
   useEffect(() => {
     if (chatMessages.length > 0 && isThinking) {
@@ -331,22 +347,8 @@ export function ChatInterface({
       className="flex flex-col h-full bg-background relative overflow-hidden"
       dir="rtl"
     >
-      {!isAuthenticated && chatMessages.length > 0 && (
-        <div className="absolute top-16 left-0 right-0 flex justify-center z-10 pointer-events-none">
-          <div
-            className={`px-3 py-1.5 rounded-full text-xs font-medium pointer-events-auto transition-colors ${
-              remainingMessages <= 3
-                ? "bg-amber-500/90 text-white"
-                : "bg-card/90 text-muted-foreground border border-border/50"
-            }`}
-          >
-            <MessageSquare className="h-3 w-3 inline-block ml-1" />
-            {remainingMessages > 0
-              ? `${remainingMessages} رسائل متبقية`
-              : "انتهت الرسائل المجانية"}
-          </div>
-        </div>
-      )}
+      {/* Unified System Header Spacer */}
+      <div className="h-12 w-full shrink-0" />
 
       <div
         ref={(el) => {
@@ -363,11 +365,10 @@ export function ChatInterface({
       >
         <div className="min-h-full flex flex-col w-full max-w-3xl px-4 sm:px-6">
           <div
-            className={`w-full pt-3 sm:pt-4 pb-3 sm:pb-4 flex-1 ${
-              chatMessages.length === 0 && !isSwitchingThread && !isLoading
-                ? "flex flex-col justify-center items-center min-h-full"
-                : ""
-            }`}
+            className={`w-full pt-3 sm:pt-4 pb-3 sm:pb-4 flex-1 ${chatMessages.length === 0 && !isSwitchingThread && !isLoading
+              ? "flex flex-col justify-center items-center min-h-full"
+              : ""
+              }`}
           >
             {/* Thread switching loading state */}
             {isSwitchingThread ? (
@@ -495,17 +496,7 @@ export function ChatInterface({
                   : "اسأل عنان أي سؤال…"
               }
             />
-            {!isAuthenticated && hasReachedLimit && (
-              <div className="mt-3 text-center">
-                <Button
-                  onClick={() => setShowAuthDialog(true)}
-                  className="gap-2"
-                >
-                  <MessageSquare className="h-4 w-4" />
-                  سجل دخولك لمتابعة المحادثة
-                </Button>
-              </div>
-            )}
+
           </div>
         </div>
       </div>

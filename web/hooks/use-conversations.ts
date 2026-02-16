@@ -7,7 +7,6 @@
  */
 
 import {
-  useAction,
   useMutation,
   usePaginatedQuery,
   useQuery,
@@ -90,7 +89,7 @@ export function useConversations(
   const createThread = useMutation(
     api.features.agent.actions.createThreadAction,
   );
-  const deleteThreadAction = useAction(api.features.agent.actions.deleteThread);
+  const deleteThreadMutation = useMutation(api.features.agent.actions.deleteThread);
 
   const conversations: Conversation[] = useMemo(() => {
     const list = hasSearch ? (searchResults ?? []) : (results ?? []);
@@ -136,10 +135,7 @@ export function useConversations(
   const remove = useCallback(
     async (threadId: string): Promise<boolean> => {
       try {
-        await deleteThreadAction({
-          threadId,
-          userId: !isAuthenticated ? (queryUserId ?? undefined) : undefined,
-        });
+        await deleteThreadMutation({ threadId });
         return true;
       } catch (err) {
         log.error("Error deleting thread:", err);
@@ -149,7 +145,7 @@ export function useConversations(
         return false;
       }
     },
-    [deleteThreadAction, isAuthenticated, queryUserId],
+    [deleteThreadMutation],
   );
 
   const isLoading = hasSearch

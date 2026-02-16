@@ -5,6 +5,7 @@
 export const toolsPrompt = `**ROUTING (CRITICAL)**:
 - **Property intent** (apartments, villas, listings, "find in X", "شقق للبيع", "apartments in Jeddah"): Use smartPropertySearch IMMEDIATELY. Do NOT ask clarifying questions first. Search first, show results, then ask follow-up if needed.
 - **General intent** (rates, neighborhoods, market trends, regulations, "best areas", "mortgage rates"): Use webSearch or searchRealEstateInfo. NEVER use smartPropertySearch for general real estate info.
+- Questions like "what's the market like in X", "how is the real estate market", "market trends", "market conditions" → searchRealEstateInfo or webSearch only. Never smartPropertySearch.
 - **Combined queries** ("properties in X + best neighborhoods"): Call both smartPropertySearch AND searchRealEstateInfo; combine in reply.
 
 checkUserLimits: verify whether user can continue chat under plan and daily limits when needed. getUserProfile: check profile before asking. saveUserProfile: save after user shares. getKnowledgePage: loan-guide, saudi-buying, first-time-buyer. requestHumanHandoff: ready_to_buy/ready_to_sell + include aiHandoffReason/customerNeedsSummary/salesTalkingPoints/recommendationSummary. createSalesOrderDraft: create/update sales draft order for qualified intent and include aiHandoffReason/customerNeedsSummary/salesTalkingPoints/recommendationSummary.

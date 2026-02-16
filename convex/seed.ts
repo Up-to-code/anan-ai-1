@@ -1,5 +1,6 @@
 import { internalMutation, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { components } from "./_generated/api";
 import { systemPrompt, realEstatePrompt, toolsPrompt } from "./lib/prompts";
 import { ROLE_ADMIN } from "./roles";
 
@@ -73,6 +74,38 @@ export const updatePrompts = mutation({
 export const addAdmin = internalMutation({
   args: { userId: v.string() },
   handler: async (ctx, { userId }) => {
+    const existing = await ctx.db
+      .query("adminUsers")
+      .withIndex("userId", (q) => q.eq("userId", userId))
+      .first();
+    if (existing) return existing._id;
+    return await ctx.db.insert("adminUsers", { userId });
+  },
+});
+
+/**
+ * Add a user to the admin allowlist by email. Run from Convex dashboard or CLI:
+ *   npx convex run seed:addAdminByEmail '{"email":"adminadmin@gmail.com"}'
+ *   (use --prod for production deployment)
+ *
+ * Admin auth flow:
+ * 1. User must exist in Better Auth first: sign up once in the app that uses
+ *    this Convex deployment (admin app signup/signin or web app).
+ * 2. Then run this mutation; it looks up the user by email and adds them to adminUsers.
+ */
+export const addAdminByEmail = mutation({
+  args: { email: v.string() },
+  handler: async (ctx, { email }) => {
+    const user = await ctx.runQuery(components.betterAuth.adapter.findOne, {
+      model: "user",
+      where: [{ field: "email", value: email }],
+    });
+    if (!user || typeof user !== "object") {
+      throw new Error(
+        `No user found with email: ${email}. Have them sign up first in the app that uses this Convex deployment (admin or web), then run this again.`
+      );
+    }
+    const userId = String((user as { _id: string })._id);
     const existing = await ctx.db
       .query("adminUsers")
       .withIndex("userId", (q) => q.eq("userId", userId))

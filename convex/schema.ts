@@ -185,6 +185,10 @@ export default defineSchema({
     planType: v.optional(v.union(v.literal("free"), v.literal("paid"))),
     planExpiresAt: v.optional(v.number()),
     chatLimit: v.optional(v.number()),
+    location: v.optional(v.string()),
+    avatar: v.optional(v.string()),
+    tokensUsed: v.optional(v.number()),
+    tokensLimit: v.optional(v.number()),
   })
     .index("userId", ["userId"])
     .index("source", ["source"]),

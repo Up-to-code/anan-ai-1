@@ -29,7 +29,6 @@ import {
   useMutation,
   usePaginatedQuery,
   useQuery,
-  useAction,
 } from "convex/react";
 import type { RootStackParamList } from "../navigation/RootNavigator";
 import { api } from "../convex";
@@ -282,7 +281,7 @@ export function ConversationsScreen() {
   const createThread = useMutation(
     api.features.agent.actions.createThreadAction,
   );
-  const deleteThreadAction = useAction(api.features.agent.actions.deleteThread);
+  const deleteThreadMutation = useMutation(api.features.agent.actions.deleteThread);
 
   // Debounce search
   useEffect(() => {
@@ -373,16 +372,13 @@ export function ConversationsScreen() {
   const handleDelete = useCallback(
     async (conv: Conversation) => {
       try {
-        await deleteThreadAction({
-          threadId: conv.id,
-          userId: isAuthenticated ? undefined : userId,
-        });
+        await deleteThreadMutation({ threadId: conv.id });
       } catch (e) {
         console.error(e);
         Alert.alert("خطأ", "تعذر حذف المحادثة.");
       }
     },
-    [deleteThreadAction, isAuthenticated, userId],
+    [deleteThreadMutation],
   );
 
   const isLoading = hasSearch

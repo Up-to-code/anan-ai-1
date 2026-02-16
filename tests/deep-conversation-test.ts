@@ -4,7 +4,7 @@
  */
 
 const CONVEX_URL =
-  process.env.CONVEX_URL || "https://outstanding-mastiff-930.convex.cloud";
+  process.env.CONVEX_URL ?? process.env.VITE_CONVEX_URL ?? "https://intent-dolphin-324.convex.cloud";
 
 interface TestResult {
   id: string;

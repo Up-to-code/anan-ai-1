@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Admin - separate repo for Vercel
+admin/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -22,3 +25,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Generated test reports (root)
+deep-test-results.json
+deep-test-report.html
+multi-platform-test-results.json
+multi-platform-test-report.html
+quick-platform-test-results.json

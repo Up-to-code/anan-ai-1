@@ -7,48 +7,30 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "convex/_generated/api";
 import { Id } from "convex/_generated/dataModel";
 import { ar } from "@/lib/ar";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   User,
   DollarSign,
   Calendar,
   Building2,
   Phone,
-  Clock,
   MessageSquare,
-  ArrowRight,
   Bot,
-  Home,
-  Landmark,
   Package,
   Target,
-  Activity,
-  CheckCircle,
   AlertTriangle,
   Save,
   Loader2,
-  ChevronRight,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { PageHeader } from "@/components/admin/ui";
 import { toast } from "sonner";
 import {
   ORDER_STATUS,
@@ -56,31 +38,8 @@ import {
   type OrderStatus,
 } from "@/lib/status-config";
 
-function InfoCard({
-  title,
-  icon: Icon,
-  children,
-}: {
-  title: string;
-  icon: React.ElementType;
-  children: React.ReactNode;
-}) {
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center gap-2">
-          <div className="p-2 rounded-lg bg-muted">
-            <Icon className="h-4 w-4 text-muted-foreground" />
-          </div>
-          <CardTitle className="text-base">{title}</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent>{children}</CardContent>
-    </Card>
-  );
-}
-
-function InfoRow({
+/* ─────────── Inline Info Item ─────────── */
+function InfoItem({
   label,
   value,
 }: {
@@ -95,6 +54,7 @@ function InfoRow({
   );
 }
 
+/* ─────────── Main Page ─────────── */
 export default function OrderDetailPage() {
   const params = useParams();
   const orderId = params.id as Id<"orders">;
@@ -105,6 +65,7 @@ export default function OrderDetailPage() {
   const [assignedTo, setAssignedTo] = React.useState("");
   const [nextAction, setNextAction] = React.useState("");
   const [notes, setNotes] = React.useState("");
+  const [showAI, setShowAI] = React.useState(false);
 
   React.useEffect(() => {
     if (!order) return;
@@ -113,7 +74,7 @@ export default function OrderDetailPage() {
     setNotes(order.notes ?? "");
   }, [order]);
 
-  async function onSaveDetails() {
+  async function onSave() {
     if (!order) return;
     setSaving(true);
     try {
@@ -144,11 +105,11 @@ export default function OrderDetailPage() {
     }
   }
 
+  /* ── Loading ── */
   if (order === undefined) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-48 rounded-xl" />
         <div className="grid md:grid-cols-2 gap-4">
           <Skeleton className="h-48 rounded-xl" />
           <Skeleton className="h-48 rounded-xl" />
@@ -157,6 +118,7 @@ export default function OrderDetailPage() {
     );
   }
 
+  /* ── Not Found ── */
   if (!order) {
     return (
       <Card>
@@ -179,209 +141,136 @@ export default function OrderDetailPage() {
     ORDER_STATUS[order.status as OrderStatus] || ORDER_STATUS.new_lead;
   const StatusIcon = status.icon;
   const transitions = ORDER_TRANSITIONS[order.status] || [];
-
   const isStale = order.ageHours > 48;
-  const isWon = order.status === "closed_won";
-  const isLost = order.status === "closed_lost";
+  const isTerminal =
+    order.status === "closed_won" || order.status === "closed_lost";
+
+  const hasAISummary =
+    order.aiHandoffReason ||
+    order.customerNeedsSummary ||
+    order.salesTalkingPoints;
 
   return (
     <div className="space-y-6">
-      <Breadcrumb>
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbLink href="/">{ar.dashboard}</BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbLink href="/orders">{ar.orders}</BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage className="flex items-center gap-2">
-              <Package className="h-4 w-4" />
-              طلب #{order._id.slice(-6)}
-            </BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
-
-      <Card className="relative overflow-hidden">
-        <div className={cn("h-1", status.bgColor)} />
-        <CardContent className="pt-6 pb-4">
-          <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
-            <div className="flex items-start gap-4">
-              <div className={cn("p-4 rounded-xl", status.bgColor)}>
-                <StatusIcon className={cn("h-8 w-8", status.textColor)} />
-              </div>
-              <div>
-                <div className="flex items-center gap-3 flex-wrap">
-                  <h1 className="text-xl font-bold">
-                    {order.userName || ar.unnamedCustomer}
-                  </h1>
-                  <Badge
-                    className={cn(
-                      status.bgColor,
-                      status.textColor,
-                      "border-0 text-xs",
-                    )}
-                  >
-                    {status.label}
-                  </Badge>
-                  {isStale && !isWon && !isLost && (
-                    <Badge
-                      variant="outline"
-                      className="text-amber-600 border-amber-500/30"
-                    >
-                      <AlertTriangle className="h-3 w-3 ml-1" />
-                      قديم
-                    </Badge>
-                  )}
-                </div>
-                <div className="flex items-center gap-4 mt-2 text-muted-foreground">
-                  <div className="flex items-center gap-1.5 text-sm">
-                    <Phone className="h-4 w-4" />
-                    <span dir="ltr">{order.userPhone || "-"}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-sm">
-                    <Clock className="h-4 w-4" />
-                    <span>{order.ageHours} ساعة</span>
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <Button variant="outline" size="sm" asChild>
-                    <Link href={`/users/${order.userId}?tab=conversation`}>
-                      <MessageSquare className="h-4 w-4 ml-2" />
-                      {ar.conversation}
-                    </Link>
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-500" />
-          <CardContent className="pt-5 pb-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-emerald-500/10">
-                <DollarSign className="h-4 w-4 text-emerald-600" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">{ar.budget}</p>
-                <p className="text-lg font-bold">
-                  {order.budget
-                    ? `${order.budget.toLocaleString("ar-SA")} ر.س`
-                    : "-"}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-1 bg-blue-500" />
-          <CardContent className="pt-5 pb-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-blue-500/10">
-                <Target className="h-4 w-4 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">{ar.type}</p>
-                <p className="text-lg font-bold">
-                  {(ar as any)[order.type] || order.type}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="relative overflow-hidden">
-          <div
-            className={cn(
-              "absolute top-0 left-0 right-0 h-1",
-              order.priority === "high"
-                ? "bg-rose-500"
-                : order.priority === "low"
-                  ? "bg-gray-400"
-                  : "bg-amber-500",
-            )}
-          />
-          <CardContent className="pt-5 pb-4">
-            <div className="flex items-center gap-3">
-              <div
-                className={cn(
-                  "p-2.5 rounded-xl",
-                  order.priority === "high"
-                    ? "bg-rose-500/10"
-                    : order.priority === "low"
-                      ? "bg-gray-500/10"
-                      : "bg-amber-500/10",
-                )}
+      {/* ── Header ── */}
+      <PageHeader
+        title={order.userName || ar.unnamedCustomer}
+        description={`طلب #${order._id.slice(-6)}`}
+        icon={Package}
+        breadcrumbs={[
+          { label: ar.orders, href: "/orders" },
+          { label: order.userName || ar.unnamedCustomer },
+        ]}
+        action={
+          <div className="flex items-center gap-2">
+            <Badge className={cn("border-0", status.bgColor, status.textColor)}>
+              <StatusIcon className="h-3 w-3 ml-1" />
+              {status.label}
+            </Badge>
+            {isStale && !isTerminal && (
+              <Badge
+                variant="outline"
+                className="text-amber-600 border-amber-500/30"
               >
-                <Activity
-                  className={cn(
-                    "h-4 w-4",
-                    order.priority === "high"
-                      ? "text-rose-600"
-                      : order.priority === "low"
-                        ? "text-gray-600"
-                        : "text-amber-600",
-                  )}
-                />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">{ar.priority}</p>
-                <p className="text-lg font-bold">
-                  {(ar as any)[order.priority || "medium"] || order.priority}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+                <AlertTriangle className="h-3 w-3 ml-1" />
+                قديم
+              </Badge>
+            )}
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/users/${order.userId}?tab=conversation`}>
+                <MessageSquare className="h-4 w-4 ml-2" />
+                {ar.conversation}
+              </Link>
+            </Button>
+          </div>
+        }
+      />
 
-        <Card className="relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-1 bg-violet-500" />
-          <CardContent className="pt-5 pb-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-violet-500/10">
-                <Calendar className="h-4 w-4 text-violet-600" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">{ar.createdAt}</p>
-                <p className="text-sm font-bold">
-                  {new Date(order._creationTime).toLocaleDateString("ar-SA")}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {/* ── Quick Meta ── */}
+      <div className="flex flex-wrap items-center gap-4 text-sm">
+        <div className="flex items-center gap-1.5 text-muted-foreground">
+          <DollarSign className="h-4 w-4" />
+          <span className="font-medium text-foreground">
+            {order.budget
+              ? `${order.budget.toLocaleString("ar-SA")} ر.س`
+              : "-"}
+          </span>
+        </div>
+        <div className="h-4 w-px bg-border" />
+        <div className="flex items-center gap-1.5 text-muted-foreground">
+          <Target className="h-4 w-4" />
+          <span className="font-medium text-foreground">
+            {(ar as any)[order.type] || order.type}
+          </span>
+        </div>
+        <div className="h-4 w-px bg-border" />
+        <div className="flex items-center gap-1.5 text-muted-foreground">
+          <Calendar className="h-4 w-4" />
+          <span className="font-medium text-foreground">
+            {new Date(order._creationTime).toLocaleDateString("ar-SA")}
+          </span>
+        </div>
+        {order.priority && (
+          <>
+            <div className="h-4 w-px bg-border" />
+            <Badge
+              variant="outline"
+              className={cn(
+                "text-xs",
+                order.priority === "high"
+                  ? "text-rose-600 border-rose-300"
+                  : order.priority === "urgent"
+                    ? "text-red-600 border-red-300"
+                    : ""
+              )}
+            >
+              {(ar as any)[order.priority] || order.priority}
+            </Badge>
+          </>
+        )}
       </div>
 
+      {/* ── Info Section ── */}
       <div className="grid md:grid-cols-2 gap-4">
-        <InfoCard title="معلومات العميل" icon={User}>
-          <div className="space-y-0">
-            <InfoRow label={ar.name} value={order.userName || "-"} />
-            <InfoRow
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-lg bg-muted">
+                <User className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <CardTitle className="text-base">معلومات العميل</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <InfoItem label={ar.name} value={order.userName || "-"} />
+            <InfoItem
               label={ar.phone}
               value={<span dir="ltr">{order.userPhone || "-"}</span>}
             />
-            <InfoRow
+            <InfoItem
               label={ar.source}
-              value={(ar as any)[order.source || ""] || order.source || "-"}
+              value={
+                (ar as any)[order.source || ""] || order.source || "-"
+              }
             />
-            <InfoRow
+            <InfoItem
               label={ar.preferredLocation}
               value={order.preferredLocation || "-"}
             />
-          </div>
-        </InfoCard>
+          </CardContent>
+        </Card>
 
-        <InfoCard title="الكيانات المرتبطة" icon={Building2}>
-          <div className="space-y-0">
-            <InfoRow
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-lg bg-muted">
+                <Building2 className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <CardTitle className="text-base">الكيانات المرتبطة</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <InfoItem
               label={ar.bank}
               value={
                 order.bank ? (
@@ -396,11 +285,13 @@ export default function OrderDetailPage() {
                 )
               }
             />
-            <InfoRow
+            <InfoItem
               label={ar.bankProduct}
-              value={order.bankProduct?.name || order.bankProductName || "-"}
+              value={
+                order.bankProduct?.name || order.bankProductName || "-"
+              }
             />
-            <InfoRow
+            <InfoItem
               label={ar.property}
               value={
                 order.property ? (
@@ -415,64 +306,91 @@ export default function OrderDetailPage() {
                 )
               }
             />
-          </div>
-        </InfoCard>
+          </CardContent>
+        </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-violet-500/10">
-              <Bot className="h-4 w-4 text-violet-600" />
+      {/* ── AI Summary (Collapsible) ── */}
+      {hasAISummary && (
+        <Card>
+          <button
+            onClick={() => setShowAI(!showAI)}
+            className="w-full px-6 py-4 flex items-center justify-between hover:bg-muted/30 transition-colors rounded-xl"
+          >
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-lg bg-violet-500/10">
+                <Bot className="h-4 w-4 text-violet-600" />
+              </div>
+              <div className="text-right">
+                <p className="text-sm font-medium">ملخص المبيعات</p>
+                <p className="text-xs text-muted-foreground">
+                  توليد تلقائي من الذكاء الاصطناعي
+                </p>
+              </div>
             </div>
-            <div>
-              <CardTitle className="text-base">ملخص المبيعات</CardTitle>
-              <CardDescription>
-                توليد تلقائي من الذكاء الاصطناعي
-              </CardDescription>
-            </div>
+            {showAI ? (
+              <ChevronUp className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            )}
+          </button>
+          <div
+            className={cn(
+              "overflow-hidden transition-all duration-300",
+              showAI ? "max-h-[600px] opacity-100" : "max-h-0 opacity-0"
+            )}
+          >
+            <CardContent className="space-y-3 pt-0 pb-4">
+              {order.aiHandoffReason && (
+                <div className="p-3 rounded-lg bg-muted/50">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+                    {ar.handoffReason}
+                  </p>
+                  <p className="text-sm">{order.aiHandoffReason}</p>
+                </div>
+              )}
+              {order.customerNeedsSummary && (
+                <div className="p-3 rounded-lg bg-muted/50">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+                    {ar.customerNeedsSummary}
+                  </p>
+                  <p className="text-sm">{order.customerNeedsSummary}</p>
+                </div>
+              )}
+              {order.salesTalkingPoints && (
+                <div className="p-3 rounded-lg bg-muted/50">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+                    {ar.talkingPoints}
+                  </p>
+                  <p className="text-sm">{order.salesTalkingPoints}</p>
+                </div>
+              )}
+            </CardContent>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="p-4 rounded-xl bg-muted/50">
-            <p className="text-xs text-muted-foreground mb-1">
-              {ar.handoffReason}
-            </p>
-            <p className="text-sm">
-              {order.aiHandoffReason || order.intent || "-"}
-            </p>
-          </div>
-          <div className="p-4 rounded-xl bg-muted/50">
-            <p className="text-xs text-muted-foreground mb-1">
-              {ar.customerNeedsSummary}
-            </p>
-            <p className="text-sm">{order.customerNeedsSummary || "-"}</p>
-          </div>
-          <div className="p-4 rounded-xl bg-muted/50">
-            <p className="text-xs text-muted-foreground mb-1">
-              {ar.talkingPoints}
-            </p>
-            <p className="text-sm">{order.salesTalkingPoints || "-"}</p>
-          </div>
-        </CardContent>
-      </Card>
+        </Card>
+      )}
 
+      {/* ── Follow-up & Actions ── */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">المتابعة</CardTitle>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">المتابعة والإجراءات</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">{ar.assignedTo}</label>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">
+                {ar.assignedTo}
+              </label>
               <Input
                 value={assignedTo}
                 onChange={(e) => setAssignedTo(e.target.value)}
                 placeholder="معرّف مسؤول المبيعات"
               />
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">{ar.nextAction}</label>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">
+                {ar.nextAction}
+              </label>
               <Input
                 value={nextAction}
                 onChange={(e) => setNextAction(e.target.value)}
@@ -480,53 +398,53 @@ export default function OrderDetailPage() {
               />
             </div>
           </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">{ar.notes}</label>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">
+              {ar.notes}
+            </label>
             <Textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              rows={3}
+              rows={2}
+              className="resize-none"
             />
           </div>
-          <Button onClick={onSaveDetails} disabled={saving}>
-            {saving ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Save className="h-4 w-4" />
+
+          {/* Action Bar */}
+          <div className="flex items-center justify-between pt-2 border-t">
+            <Button onClick={onSave} disabled={saving} size="sm">
+              {saving ? (
+                <Loader2 className="h-4 w-4 animate-spin ml-1" />
+              ) : (
+                <Save className="h-4 w-4 ml-1" />
+              )}
+              {ar.save}
+            </Button>
+
+            {transitions.length > 0 && (
+              <div className="flex items-center gap-2">
+                {transitions.map((next) => {
+                  const nextConfig = ORDER_STATUS[next as OrderStatus];
+                  const NextIcon = nextConfig?.icon;
+                  return (
+                    <Button
+                      key={next}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onMoveStatus(next)}
+                      disabled={saving}
+                      className={cn("gap-1.5", nextConfig?.textColor)}
+                    >
+                      {NextIcon && <NextIcon className="h-3.5 w-3.5" />}
+                      {nextConfig?.label || next}
+                    </Button>
+                  );
+                })}
+              </div>
             )}
-            {ar.save}
-          </Button>
+          </div>
         </CardContent>
       </Card>
-
-      {transitions.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">نقل إلى المرحلة التالية</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {transitions.map((next) => {
-                const nextConfig = ORDER_STATUS[next as OrderStatus];
-                return (
-                  <Button
-                    key={next}
-                    variant="outline"
-                    onClick={() => onMoveStatus(next)}
-                    disabled={saving}
-                    className={cn("gap-2", nextConfig?.textColor)}
-                  >
-                    {nextConfig?.icon && (
-                      <nextConfig.icon className="h-4 w-4" />
-                    )}
-                    {nextConfig?.label || next}
-                  </Button>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }

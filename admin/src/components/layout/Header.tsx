@@ -12,6 +12,8 @@ import {
   ChevronLeft,
   Check,
   X,
+  Bot,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,15 +42,16 @@ import { api } from "convex/_generated/api";
 import { cn } from "@/lib/utils";
 
 function NotificationBell() {
+  const isAdmin = useQuery(api.features.admin.api.isAdmin);
   const unreadCount = useQuery(
     api.features.admin.api.notificationsUnreadCount,
-    {},
+    isAdmin === true ? {} : "skip",
   );
   const notificationsResult = useQuery(
     api.features.admin.api.notificationsList,
-    {
-      paginationOpts: { numItems: 10, cursor: null },
-    },
+    isAdmin === true
+      ? { paginationOpts: { numItems: 10, cursor: null } }
+      : "skip",
   );
   const acknowledge = useMutation(
     api.features.admin.api.notificationAcknowledge,
@@ -170,6 +173,19 @@ export function Header() {
       <div className="flex-1" />
 
       <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 gap-2 bg-primary/5 border-primary/20 hover:bg-primary/10 hover:border-primary/30 transition-all shadow-sm hidden md:flex"
+          asChild
+        >
+          <Link href="/agent">
+            <Bot className="h-4 w-4 text-primary" />
+            <span className="text-xs font-bold tracking-tight">{ar.aiAgent}</span>
+            <Sparkles className="h-3 w-3 text-primary/50" />
+          </Link>
+        </Button>
+
         <NotificationBell />
 
         <Button

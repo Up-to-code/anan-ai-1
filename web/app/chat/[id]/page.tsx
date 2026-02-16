@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 import { ChatInterface } from "@/components/chat/chat-interface";
 
@@ -17,9 +17,11 @@ function isValidThreadId(id: string | null | undefined): id is string {
 export default function ChatPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const rawId = params.id as string;
 
-  const conversationId = isValidThreadId(rawId) ? rawId : rawId === "new" ? null : null;
+  const conversationId = isValidThreadId(rawId) ? rawId : null;
+  const initialMessage = rawId === "new" ? searchParams.get("q") : null;
 
   useEffect(() => {
     if (rawId === "settings") {
@@ -33,6 +35,7 @@ export default function ChatPage() {
     <ChatInterface
       key={conversationId ?? "new"}
       conversationId={conversationId}
+      initialMessage={initialMessage ?? undefined}
     />
   );
 }

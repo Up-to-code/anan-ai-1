@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
     ],
   },
   webpack(config) {
-    const convexRoot = path.resolve(__dirname, "../convex");
+    const convexRoot = path.resolve(__dirname, "convex");
     config.resolve.alias = {
       ...config.resolve.alias,
       "convex/_generated/api": path.join(convexRoot, "_generated/api.js"),
@@ -24,9 +24,9 @@ const nextConfig: NextConfig = {
     };
     return config;
   },
-  turbopack: {
+    turbopack: {
     resolveAlias: {
-      convex: path.resolve(__dirname, "../convex"),
+      convex: path.resolve(__dirname, "convex"),
     },
   },
 };

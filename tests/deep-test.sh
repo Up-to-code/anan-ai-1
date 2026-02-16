@@ -86,7 +86,12 @@ log_test() {
 }
 
 echo "Creating test thread..."
-THREAD_ID=$(npx convex run agents/actions:createThreadAction '{"userId": "deep-test-user"}' 2>/dev/null | grep -o '"threadId":"[^"]*"' | cut -d'"' -f4)
+RAW=$(npx convex run agents/actions:createThreadAction '{"userId": "deep-test-user"}' 2>&1)
+THREAD_ID=$(echo "$RAW" | grep -oE '"threadId"[[:space:]]*:[[:space:]]*"[^"]*"' | grep -oE '"[^"]*"' | tail -1 | tr -d '"')
+if [ -z "$THREAD_ID" ]; then
+  echo "Failed to create thread. Output: $RAW"
+  exit 1
+fi
 echo "Thread ID: $THREAD_ID"
 echo ""
 

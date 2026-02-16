@@ -257,6 +257,9 @@ export async function handleWhatsAppWebhookGet(_ctx: Ctx, request: Request): Pro
 
 /** POST /api/webhook/whatsapp - Incoming messages */
 export async function handleWhatsAppWebhookPost(ctx: Ctx, request: Request): Promise<Response> {
+  // #region agent log
+  fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/channels/whatsapp/webhook.ts:handleWhatsAppWebhookPost',message:'handleWhatsAppWebhookPost entry',data:{func:'handleWhatsAppWebhookPost'},hypothesisId:'F20',timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
   const body = await request.text();
   const sig = request.headers.get("x-hub-signature-256") ?? "";
   const secret = process.env.WHATSAPP_APP_SECRET;

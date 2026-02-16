@@ -8,6 +8,8 @@ import { api } from "convex/_generated/api";
 import {
   LayoutDashboard,
   Users,
+  UsersRound,
+  Bot,
   ShoppingCart,
   Bell,
   Building2,
@@ -53,14 +55,20 @@ interface NavGroupConfig {
 
 const navGroups: NavGroupConfig[] = [
   {
-    title: "عام",
+    title: "navMain",
     items: [
       { title: ar.dashboard, href: "/", icon: LayoutDashboard },
+    ],
+  },
+  {
+    title: "navTeam",
+    items: [
+      { title: ar.team, href: "/team", icon: UsersRound },
       { title: ar.users, href: "/users", icon: Users },
     ],
   },
   {
-    title: "المبيعات",
+    title: "navSales",
     items: [
       {
         title: ar.pipelineOrders,
@@ -77,7 +85,7 @@ const navGroups: NavGroupConfig[] = [
     ],
   },
   {
-    title: "الكيانات",
+    title: "navData",
     items: [
       { title: ar.developers, href: "/developers", icon: Building2 },
       { title: ar.properties, href: "/properties", icon: Landmark },
@@ -86,16 +94,16 @@ const navGroups: NavGroupConfig[] = [
     ],
   },
   {
-    title: "المحتوى",
+    title: "navContent",
     items: [
-      { title: ar.reviews, href: "/reviews", icon: MessageSquareText },
-      { title: ar.favorites, href: "/favorites", icon: Heart },
       { title: ar.prompts, href: "/prompts", icon: Sparkles },
       { title: ar.knowledge, href: "/knowledge", icon: BookOpen },
+      { title: ar.reviews, href: "/reviews", icon: MessageSquareText },
+      { title: ar.favorites, href: "/favorites", icon: Heart },
     ],
   },
   {
-    title: "النظام",
+    title: "navSystem",
     items: [
       { title: "تحليلات AI", href: "/analytics/llm", icon: BarChart3 },
       { title: ar.settings, href: "/settings", icon: Cog },
@@ -127,14 +135,17 @@ function NavItem({
       href={item.href}
       onClick={onClick}
       className={cn(
-        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors relative",
+        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200 relative group/item",
         isActive
-          ? "bg-primary text-primary-foreground"
-          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+          ? "bg-primary text-primary-foreground shadow-md shadow-primary/20 font-medium"
+          : "text-muted-foreground/80 hover:bg-muted hover:text-foreground",
         collapsed && "justify-center px-2",
       )}
     >
-      <Icon className="h-4 w-4 shrink-0" />
+      <Icon className={cn(
+        "h-4 w-4 shrink-0 transition-transform duration-200",
+        !isActive && "group-hover/item:scale-110"
+      )} />
       {!collapsed && <span className="flex-1">{item.title}</span>}
       {item.badge && badgeCount !== undefined && badgeCount > 0 && (
         <span
@@ -169,11 +180,29 @@ function NavItem({
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { collapsed } = useSidebar();
+  const isAdmin = useQuery(api.features.admin.api.isAdmin);
   const unreadCount = useQuery(
     api.features.admin.api.notificationsUnreadCount,
-    {},
+    isAdmin === true ? {} : "skip",
   );
-  const summary = useQuery(api.features.admin.api.pipelineSummary);
+  const summary = useQuery(
+    api.features.admin.api.pipelineSummary,
+    isAdmin === true ? undefined : "skip",
+  );
+
+  const [expandedGroups, setExpandedGroups] = React.useState<Record<string, boolean>>(() => {
+    if (typeof window === "undefined") return { navMain: true };
+    const saved = localStorage.getItem("sidebar_expanded_groups");
+    return saved ? JSON.parse(saved) : { navMain: true };
+  });
+
+  React.useEffect(() => {
+    localStorage.setItem("sidebar_expanded_groups", JSON.stringify(expandedGroups));
+  }, [expandedGroups]);
+
+  const toggleGroup = (title: string) => {
+    setExpandedGroups(prev => ({ ...prev, [title]: !prev[title] }));
+  };
 
   const getBadgeCount = (badge?: string) => {
     if (badge === "notifications") return unreadCount;
@@ -190,43 +219,66 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         )}
       >
         <Link href="/" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-lg shadow-primary/20">
             <Zap className="h-4 w-4" />
           </div>
-          {!collapsed && <span className="font-bold text-lg">عنان</span>}
+          {!collapsed && <span className="font-bold text-lg tracking-tight">عنان</span>}
         </Link>
       </div>
 
       <ScrollArea className="flex-1 px-3 py-4">
         <TooltipProvider>
-          <nav className="space-y-4">
-            {navGroups.map((group) => (
-              <div key={group.title}>
-                {!collapsed && (
-                  <p className="mb-2 px-3 text-xs font-medium text-muted-foreground">
-                    {group.title}
-                  </p>
-                )}
-                <div className="space-y-1">
-                  {group.items.map((item) => (
-                    <NavItem
-                      key={item.href}
-                      item={item}
-                      isActive={
-                        item.href === "/"
-                          ? pathname === "/"
-                          : item.href
-                            ? pathname.startsWith(item.href)
-                            : false
-                      }
-                      badgeCount={getBadgeCount(item.badge)}
-                      collapsed={collapsed}
-                      onClick={onNavigate}
-                    />
-                  ))}
+          <nav className="space-y-2">
+            {navGroups.map((group) => {
+              const isExpanded = expandedGroups[group.title] ?? false;
+              const hasActiveChild = group.items.some(item =>
+                item.href === "/" ? pathname === "/" : item.href ? pathname.startsWith(item.href) : false
+              );
+
+              return (
+                <div key={group.title} className="space-y-1">
+                  {!collapsed ? (
+                    <button
+                      onClick={() => toggleGroup(group.title)}
+                      className={cn(
+                        "flex w-full items-center justify-between px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50 hover:text-foreground transition-colors group/header",
+                        hasActiveChild && !isExpanded && "text-primary/70"
+                      )}
+                    >
+                      <span>{(ar as any)[group.title]}</span>
+                      <ChevronRight className={cn(
+                        "h-3 w-3 transition-transform duration-200 opacity-0 group-hover/header:opacity-100",
+                        isExpanded && "rotate-90 opacity-100"
+                      )} />
+                    </button>
+                  ) : (
+                    <div className="h-px bg-muted mx-2 my-4 opacity-50" />
+                  )}
+
+                  <div className={cn(
+                    "space-y-1 overflow-hidden transition-all duration-300",
+                    collapsed ? "block" : isExpanded ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"
+                  )}>
+                    {group.items.map((item) => (
+                      <NavItem
+                        key={item.href}
+                        item={item}
+                        isActive={
+                          item.href === "/"
+                            ? pathname === "/"
+                            : item.href
+                              ? pathname.startsWith(item.href)
+                              : false
+                        }
+                        badgeCount={getBadgeCount(item.badge)}
+                        collapsed={collapsed}
+                        onClick={onNavigate}
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </nav>
         </TooltipProvider>
       </ScrollArea>

@@ -2,7 +2,12 @@
  * Property service - list, search, get.
  */
 
-import { internalMutation, mutation, query } from "../_generated/server";
+import {
+  internalMutation,
+  internalQuery,
+  mutation,
+  query,
+} from "../_generated/server";
 import {
   SEARCH_CACHE_TTL_HOT_MS,
   SEARCH_CACHE_TTL_WARM_MS,
@@ -11,6 +16,7 @@ import {
 } from "../agents/_lib/constants";
 import { Infer, v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
+import { optionalAuth, requireAdmin } from "../lib/auth";
 import { addImageUrls } from "../lib/imageUrls";
 import { propertyWithUrlValidator } from "../domain/validators";
 
@@ -199,6 +205,9 @@ export const search = query({
   },
   returns: v.array(propertyWithUrlValidator),
   handler: async (ctx, { query: q, limit = 20, onlyAvailable = true }) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/services/properties.ts:search',message:'search entry',data:{func:'search',queryLen:q.length,limit,onlyAvailable},hypothesisId:'F7',timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     const normalized = normalizeQuery(q);
 
     // Try multi-field search first (if searchText is populated)
@@ -302,14 +311,40 @@ export const logSearchEvent = mutation({
   },
 });
 
-export const getRecentSearchCount = query({
-  args: {
-    userId: v.string(),
-    query: v.string(),
-    lookbackMs: v.optional(v.number()),
-  },
+const getRecentSearchCountArgs = {
+  userId: v.string(),
+  query: v.string(),
+  lookbackMs: v.optional(v.number()),
+};
+
+/** Internal: count recent searches (no auth). Used by agent. */
+export const getRecentSearchCountInternal = internalQuery({
+  args: getRecentSearchCountArgs,
   returns: v.number(),
   handler: async (ctx, { userId, query, lookbackMs = 1000 * 60 * 60 * 24 }) => {
+    const since = Date.now() - lookbackMs;
+    const normalizedQuery = normalizeQuery(query);
+    const rows = await ctx.db
+      .query("searchLogs")
+      .withIndex("userId", (q) => q.eq("userId", userId))
+      .collect();
+    return rows.filter((row) => {
+      if (!row.query) return false;
+      if ((row.stage ?? "completed") !== "completed") return false;
+      if (row._creationTime < since) return false;
+      return normalizeQuery(row.query) === normalizedQuery;
+    }).length;
+  },
+});
+
+export const getRecentSearchCount = query({
+  args: getRecentSearchCountArgs,
+  returns: v.number(),
+  handler: async (ctx, { userId, query, lookbackMs = 1000 * 60 * 60 * 24 }) => {
+    const authUserId = await optionalAuth(ctx);
+    if (authUserId !== userId) {
+      await requireAdmin(ctx);
+    }
     const since = Date.now() - lookbackMs;
     const normalizedQuery = normalizeQuery(query);
     const rows = await ctx.db
