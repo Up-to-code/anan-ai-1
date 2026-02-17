@@ -96,6 +96,25 @@ export type WhatsAppOfferQueueItem =
 const MAX_OFFERS_PER_TURN = 5;
 const MAX_IMAGES_PER_OFFER = 5;
 
+/** Single property detail: all images first (no caption), then one text block (description + link + CTA). */
+export function buildSinglePropertyDetailQueue(block: OfferBlock): WhatsAppOfferQueueItem[] {
+  const imageUrls = normalizeWhatsAppImageUrls(
+    block.imageUrl,
+    block.imageUrls,
+    MAX_IMAGES_PER_OFFER
+  );
+  const queue: WhatsAppOfferQueueItem[] = [];
+  for (const url of imageUrls) {
+    queue.push({ type: "image", imageUrl: url });
+  }
+  const fullContent = block.link
+    ? `${block.text.trim()}\n\n${block.link}`
+    : block.text.trim();
+  const textWithCta = `${fullContent}\n\n${buildCompactOfferCta(block.text)}`;
+  queue.push({ type: "text", text: textWithCta });
+  return queue;
+}
+
 function buildCompactOfferCta(text: string): string {
   const isArabic = /[\u0600-\u06FF]/.test(text);
   return isArabic
@@ -312,14 +331,14 @@ export async function handleWhatsAppWebhookPost(ctx: Ctx, request: Request): Pro
       }
     }
 
+    if (pid && event.messageId) {
+      await wa.sendTyping(event.messageId);
+    }
+
     await ctx.runMutation(api.services.users.ensureWhatsAppUser, {
       userId,
       displayName: event.displayName,
     });
-
-    if (pid && event.messageId) {
-      await wa.sendTyping(event.messageId);
-    }
 
     const { text: replyText, imageUrl, imageUrls, offerBlocks } = await ctx.runAction(
       internal.agents.actions.generateReplyAndReturnText,
@@ -328,10 +347,15 @@ export async function handleWhatsAppWebhookPost(ctx: Ctx, request: Request): Pro
 
     if (pid) {
       const normalizedImageUrls = normalizeWhatsAppImageUrls(imageUrl, imageUrls, 5);
-      const offerQueue = ensureOfferQueueHasImageFallback(
-        buildWhatsAppOfferSendQueue(offerBlocks, 5),
-        normalizedImageUrls
-      );
+      const isSinglePropertyDetail =
+        offerBlocks?.length === 1 &&
+        ((offerBlocks[0].imageUrls?.length ?? 0) >= 1 || !!offerBlocks[0].imageUrl);
+      const offerQueue = isSinglePropertyDetail
+        ? buildSinglePropertyDetailQueue(offerBlocks[0])
+        : ensureOfferQueueHasImageFallback(
+            buildWhatsAppOfferSendQueue(offerBlocks, 5),
+            normalizedImageUrls
+          );
       if (offerQueue.length > 0) {
         for (let idx = 0; idx < offerQueue.length; idx += 1) {
           const item = offerQueue[idx];

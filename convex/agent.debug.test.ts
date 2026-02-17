@@ -13,8 +13,7 @@ import { convexTest } from "convex-test";
 import { expect, test } from "vitest";
 import schema from "./schema";
 import { internal } from "./_generated/api";
-
-const modules = import.meta.glob("./**/*.ts");
+import { modules } from "./test.setup";
 
 const hasAgentEnv = Boolean(process.env.OPENROUTER_API_KEY);
 

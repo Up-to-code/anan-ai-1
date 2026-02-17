@@ -21,7 +21,7 @@
     "chat:agent": "bun run scripts/curl-agent-chat.ts",
     "test:agent:run": "convex run agents/actions:testAgent '{\"message\": \"Hello, can you help me find apartments in Riyadh?\"}'",
     "test:once": "vitest run",
-    "test:agent": "vitest run convex/agent.integration.test.ts --reporter=verbose",
+    "test:agent": "vitest run convex/agent.debug.test.ts --reporter=verbose",
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
     "test:coverage": "vitest run --coverage --coverage.reporter=text",
     "test:production:smoke": "bun run scripts/smoke-test-production.ts",

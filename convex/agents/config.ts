@@ -29,7 +29,7 @@ export type AgentLLMConfig =
 const DEFAULT_LOCAL_BASE_URL = "http://127.0.0.1:1234/v1";
 const DEFAULT_LOCAL_MODEL = "google/gemma-3-4b";
 const DEFAULT_OPENROUTER_MODEL = "openrouter/aurora-alpha";
-const DEFAULT_LLM_TIMEOUT_MS = 12700; // 12.7s – set LLM_TIMEOUT_MS (e.g. 1270) to override
+const DEFAULT_LLM_TIMEOUT_MS = 15000; // 15s – set LLM_TIMEOUT_MS to override (plan: 15–20s for fewer false timeouts)
 
 function parseMode(raw: string | undefined): LLMMode {
   const v = (raw ?? "").toLowerCase().trim();

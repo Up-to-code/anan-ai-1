@@ -90,6 +90,122 @@ export const store = mutation({
   },
 });
 
+/**
+ * Store a search summary in agent memory after successful smartPropertySearch.
+ * Used so REMEMBERED USER CONTEXT can include "recently searched for X in Y".
+ */
+export const storeSearchSummaryInternal = internalMutation({
+  args: {
+    userId: v.string(),
+    threadId: v.optional(v.string()),
+    query: v.string(),
+    locationHint: v.optional(v.string()),
+    budgetHint: v.optional(v.string()),
+    findingsCount: v.number(),
+  },
+  returns: v.id("agentMemory"),
+  handler: async (ctx, args) => {
+    const value = JSON.stringify({
+      query: args.query,
+      location: args.locationHint ?? null,
+      budgetHint: args.budgetHint ?? null,
+      findingsCount: args.findingsCount,
+      timestamp: Date.now(),
+    });
+    const now = Date.now();
+    const expiresAt = now + MEMORY_DEFAULT_TTL_MS;
+    const existing = await ctx.db
+      .query("agentMemory")
+      .withIndex("userId_and_key", (q) =>
+        q.eq("userId", args.userId).eq("key", "last_search_summary"),
+      )
+      .first();
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        value,
+        expiresAt,
+        threadId: args.threadId ?? existing.threadId,
+      });
+      return existing._id;
+    }
+    return ctx.db.insert("agentMemory", {
+      userId: args.userId,
+      threadId: args.threadId,
+      memoryType: "fact",
+      key: "last_search_summary",
+      value,
+      confidence: 0.9,
+      source: "property_search",
+      expiresAt,
+    });
+  },
+});
+
+/** Internal: same as store but no auth. For Mastra tools invoked from backend. */
+export const storeInternal = internalMutation({
+  args: {
+    userId: v.string(),
+    threadId: v.optional(v.string()),
+    memoryType: v.union(
+      v.literal("preference"),
+      v.literal("fact"),
+      v.literal("interaction"),
+      v.literal("constraint"),
+      v.literal("feedback"),
+    ),
+    entityType: v.optional(
+      v.union(
+        v.literal("property"),
+        v.literal("location"),
+        v.literal("bank"),
+        v.literal("product"),
+        v.literal("neighborhood"),
+      ),
+    ),
+    entityId: v.optional(v.string()),
+    key: v.string(),
+    value: v.string(),
+    confidence: v.optional(v.number()),
+    source: v.optional(v.string()),
+    expiresAt: v.optional(v.number()),
+    metadata: v.optional(v.any()),
+  },
+  returns: v.id("agentMemory"),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const confidence = args.confidence ?? 0.8;
+    const expiresAt =
+      args.expiresAt ??
+      (confidence >= 0.9
+        ? now + MEMORY_HIGH_CONFIDENCE_TTL_MS
+        : now + MEMORY_DEFAULT_TTL_MS);
+
+    const existing = await ctx.db
+      .query("agentMemory")
+      .withIndex("userId_and_key", (q) =>
+        q.eq("userId", args.userId).eq("key", args.key),
+      )
+      .first();
+
+    if (existing && existing.memoryType === args.memoryType) {
+      await ctx.db.patch(existing._id, {
+        value: args.value,
+        confidence: Math.max(existing.confidence ?? 0, confidence),
+        expiresAt,
+        metadata: args.metadata,
+        threadId: args.threadId ?? existing.threadId,
+      });
+      return existing._id;
+    }
+
+    return ctx.db.insert("agentMemory", {
+      ...args,
+      confidence,
+      expiresAt,
+    });
+  },
+});
+
 export const storeWithEmbedding = internalMutation({
   args: {
     userId: v.string(),
@@ -287,6 +403,99 @@ export const getRelevantContext = query({
   },
 });
 
+/**
+ * Multi-strategy memory: key-based + type-based recall.
+ * Semantic search deferred (no vector index in schema yet).
+ * Used for REMEMBERED USER CONTEXT injection in agent actions.
+ */
+export const getRelevantMemoriesByQuery = internalQuery({
+  args: {
+    userId: v.string(),
+    query: v.string(),
+    limit: v.optional(v.number()),
+  },
+  returns: v.object({
+    preferences: v.array(v.any()),
+    constraints: v.array(v.any()),
+    recentInteractions: v.array(v.any()),
+    lastSearchSummary: v.union(v.null(), v.any()),
+    summary: v.string(),
+  }),
+  handler: async (ctx, { userId, limit = 10 }) => {
+    const now = Date.now();
+
+    const preferences = await ctx.db
+      .query("agentMemory")
+      .withIndex("userId_and_memoryType", (q) =>
+        q.eq("userId", userId).eq("memoryType", "preference"),
+      )
+      .collect()
+      .then((results) =>
+        results
+          .filter((r) => !r.expiresAt || r.expiresAt > now)
+          .slice(0, limit),
+      );
+
+    const constraints = await ctx.db
+      .query("agentMemory")
+      .withIndex("userId_and_memoryType", (q) =>
+        q.eq("userId", userId).eq("memoryType", "constraint"),
+      )
+      .collect()
+      .then((results) =>
+        results
+          .filter((r) => !r.expiresAt || r.expiresAt > now)
+          .slice(0, limit),
+      );
+
+    const interactions = await ctx.db
+      .query("agentMemory")
+      .withIndex("userId_and_memoryType", (q) =>
+        q.eq("userId", userId).eq("memoryType", "interaction"),
+      )
+      .order("desc")
+      .collect()
+      .then((results) =>
+        results.filter((r) => !r.expiresAt || r.expiresAt > now).slice(0, 5),
+      );
+
+    const lastSearchSummary = await ctx.db
+      .query("agentMemory")
+      .withIndex("userId_and_key", (q) =>
+        q.eq("userId", userId).eq("key", "last_search_summary"),
+      )
+      .first()
+      .then((r) => {
+        if (!r || (r.expiresAt != null && r.expiresAt <= now)) return null;
+        try {
+          return JSON.parse(r.value) as {
+            query: string;
+            location: string | null;
+            budgetHint: string | null;
+            findingsCount: number;
+          };
+        } catch {
+          return null;
+        }
+      });
+
+    const summary = buildMemorySummary(
+      preferences,
+      constraints,
+      interactions,
+      lastSearchSummary,
+    );
+
+    return {
+      preferences,
+      constraints,
+      recentInteractions: interactions,
+      lastSearchSummary,
+      summary,
+    };
+  },
+});
+
 export const getRelevantContextInternal = internalQuery({
   args: {
     userId: v.string(),
@@ -348,6 +557,70 @@ export const getRelevantContextInternal = internalQuery({
   },
 });
 
+export const getMemoriesByEmbeddingIds = internalQuery({
+  args: {
+    embeddingIds: v.array(v.id("agentMemoryEmbeddings")),
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, { embeddingIds }) => {
+    const now = Date.now();
+    const results: any[] = [];
+    for (const id of embeddingIds) {
+      const emb = await ctx.db.get(id);
+      if (!emb) continue;
+      const memory = await ctx.db.get(emb.memoryId);
+      if (!memory) continue;
+      if (memory.expiresAt != null && memory.expiresAt <= now) continue;
+      results.push(memory);
+    }
+    return results;
+  },
+});
+
+/** Internal: same as storeInteraction but no auth. For Mastra tools invoked from backend. */
+export const storeInteractionInternal = internalMutation({
+  args: {
+    userId: v.string(),
+    threadId: v.optional(v.string()),
+    entityType: v.optional(
+      v.union(
+        v.literal("property"),
+        v.literal("location"),
+        v.literal("bank"),
+        v.literal("product"),
+        v.literal("neighborhood"),
+      ),
+    ),
+    entityId: v.optional(v.string()),
+    action: v.string(),
+    details: v.optional(v.string()),
+    metadata: v.optional(v.any()),
+  },
+  returns: v.id("agentMemory"),
+  handler: async (ctx, args) => {
+    const key = `interaction_${args.entityType ?? "general"}_${args.entityId ?? Date.now()}`;
+    const value = JSON.stringify({
+      action: args.action,
+      details: args.details,
+      timestamp: Date.now(),
+    });
+
+    return ctx.db.insert("agentMemory", {
+      userId: args.userId,
+      threadId: args.threadId,
+      memoryType: "interaction",
+      entityType: args.entityType,
+      entityId: args.entityId,
+      key,
+      value,
+      confidence: 1.0,
+      source: "user_action",
+      expiresAt: Date.now() + MEMORY_DEFAULT_TTL_MS,
+      metadata: args.metadata,
+    });
+  },
+});
+
 export const storeInteraction = mutation({
   args: {
     userId: v.string(),
@@ -391,6 +664,47 @@ export const storeInteraction = mutation({
       source: "user_action",
       expiresAt: Date.now() + MEMORY_DEFAULT_TTL_MS,
       metadata: args.metadata,
+    });
+  },
+});
+
+/** Internal: same as storeEntityRelation but no auth. For Mastra tools invoked from backend. */
+export const storeEntityRelationInternal = internalMutation({
+  args: {
+    fromType: v.string(),
+    fromId: v.string(),
+    relationType: v.string(),
+    toType: v.string(),
+    toId: v.string(),
+    userId: v.optional(v.string()),
+    strength: v.optional(v.number()),
+    metadata: v.optional(v.any()),
+  },
+  returns: v.id("entityRelations"),
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("entityRelations")
+      .withIndex("from_and_relation", (q) =>
+        q
+          .eq("fromType", args.fromType)
+          .eq("fromId", args.fromId)
+          .eq("relationType", args.relationType),
+      )
+      .filter((q) => q.eq(q.field("toId"), args.toId))
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        strength: Math.min(1.0, (existing.strength ?? 0.5) + 0.1),
+        metadata: args.metadata,
+      });
+      return existing._id;
+    }
+
+    return ctx.db.insert("entityRelations", {
+      ...args,
+      strength: args.strength ?? 0.5,
+      createdAt: Date.now(),
     });
   },
 });
@@ -506,6 +820,12 @@ function buildMemorySummary(
   preferences: any[],
   constraints: any[],
   interactions: any[],
+  lastSearchSummary?: {
+    query: string;
+    location: string | null;
+    budgetHint: string | null;
+    findingsCount: number;
+  } | null,
 ): string {
   const parts: string[] = [];
 
@@ -531,6 +851,18 @@ function buildMemorySummary(
     parts.push(`Constraints: ${constraintStrings.join(", ")}`);
   }
 
+  if (lastSearchSummary) {
+    const loc = lastSearchSummary.location
+      ? ` in ${lastSearchSummary.location}`
+      : "";
+    const budget = lastSearchSummary.budgetHint
+      ? ` (${lastSearchSummary.budgetHint})`
+      : "";
+    parts.push(
+      `Last search: "${lastSearchSummary.query}"${loc}${budget}, ${lastSearchSummary.findingsCount} results`,
+    );
+  }
+
   if (interactions.length > 0) {
     parts.push(`Recent activity: ${interactions.length} interactions tracked`);
   }
@@ -541,6 +873,12 @@ function buildMemorySummary(
 }
 
 export const MEMORY_TEMPLATES = {
+  AGE_PREFERENCE: (value: number | string) => ({
+    key: "age_preference",
+    value: String(value),
+    memoryType: "preference" as MemoryType,
+    source: "explicit",
+  }),
   BUDGET_PREFERENCE: (value: number) => ({
     key: "budget_preference",
     value: String(value),

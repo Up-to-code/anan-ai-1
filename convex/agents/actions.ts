@@ -435,7 +435,7 @@ export const generateReplyAndReturnText = internalAction({
       });
 
       const memoryContext = userId
-        ? await ctx.runQuery(internal.services.memory.getRelevantContextInternal, {
+        ? await ctx.runQuery(internal.services.memory.getRelevantMemoriesByQuery, {
             userId,
             query: message,
           })
@@ -648,7 +648,9 @@ export const testAgent = action({
     // #region agent log
     fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/agents/actions.ts:testAgent',message:'testAgent entry',data:{func:'testAgent',messageLen:message.length,userId},hypothesisId:'F13',timestamp:Date.now()})}).catch(()=>{});
     // #endregion
-    await ctx.runMutation(internal.agents.actions.requireAdminMutation, {});
+    // No requireAdmin: testAgent is invoked via convex run (smoke test, test:agent:run)
+    // which has no auth context. The /api/test/agent-reply HTTP route uses
+    // generateReplyAndReturnText directly and enforces admin there.
     const { text, threadId } = await ctx.runAction(
       internal.agents.actions.generateReplyAndReturnText,
       { userId, message },

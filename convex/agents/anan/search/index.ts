@@ -197,11 +197,12 @@ export async function runSearchAgent(
   try {
     const serperResult = await runSerperSearch(query, limit * 2, offset);
 
-    if (!serperResult.ok) {
+    if (!serperResult?.ok) {
       const durationMs = Date.now() - startTime;
+      const errorMsg = serperResult?.error ?? "serper_request_failed";
       console.log("[anan.search] failed", {
         duration: durationMs,
-        error: serperResult.error,
+        error: errorMsg,
       });
 
       return {
@@ -214,11 +215,11 @@ export async function runSearchAgent(
           [],
           taskList,
           searchTerms,
-          serperResult.error,
+          errorMsg,
           threadId
         ),
         userResults: [],
-        error: serperResult.error,
+        error: errorMsg,
         durationMs,
       };
     }
@@ -273,7 +274,7 @@ export async function runSearchAgent(
 
     if (findings.length < 2 && Date.now() < deadlineMs) {
       const secondResult = await runSerperSearch(query, limit * 2, 10);
-      if (secondResult.ok && secondResult.results.length > 0) {
+      if (secondResult?.ok && secondResult.results.length > 0) {
         const existingUrls = new Set(sources.map((s) => s.externalUrl));
         const additionalSources = selectTopSources(
           secondResult.results,

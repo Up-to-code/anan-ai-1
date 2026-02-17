@@ -26,8 +26,38 @@ import {
 import { SEARCH_CACHE_TTL_MS, SAUDI_CITIES } from "../../_lib/constants";
 import type { DbPropertyResult } from "../../_lib/types";
 import type { AgentToolsApi } from "./types";
+import { internal } from "../../../_generated/api";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
+
+async function storeSearchSummaryInMemory(
+  ctx: unknown,
+  params: {
+    userId: string;
+    threadId?: string;
+    query: string;
+    locationHint?: string;
+    budgetHint?: string;
+    findingsCount: number;
+  },
+): Promise<void> {
+  const runMutation = (
+    ctx as { runMutation?: (ref: unknown, args: unknown) => Promise<unknown> }
+  ).runMutation;
+  if (typeof runMutation !== "function") return;
+  try {
+    await runMutation(internal.services.memory.storeSearchSummaryInternal, {
+      userId: params.userId,
+      threadId: params.threadId,
+      query: params.query,
+      locationHint: params.locationHint,
+      budgetHint: params.budgetHint,
+      findingsCount: params.findingsCount,
+    });
+  } catch (e) {
+    console.warn("[property.storeSearchSummaryInMemory] failed:", e);
+  }
+}
 
 type PropertyQueryCriteria = {
   propertyType?: string;
@@ -703,6 +733,14 @@ export function createPropertyTools(appApi: AgentToolsApi) {
               dbResults: dbResults as DbPropertyResult[],
             }),
           );
+          await storeSearchSummaryInMemory(ctx, {
+            userId,
+            threadId,
+            query,
+            locationHint: extractQueryLocation(query),
+            budgetHint: extractQueryPriceHint(query),
+            findingsCount: dbResults.length,
+          });
         }
         console.log("[tools.smartPropertySearch] complete", {
           source: "internal_db",
@@ -747,6 +785,16 @@ export function createPropertyTools(appApi: AgentToolsApi) {
             dbResults: syntheticResults,
           }),
         );
+        if (userId) {
+          await storeSearchSummaryInMemory(ctx, {
+            userId,
+            threadId,
+            query,
+            locationHint: extractQueryLocation(query),
+            budgetHint: extractQueryPriceHint(query),
+            findingsCount: syntheticResults.length,
+          });
+        }
         await logSearchLifecycle(ctx, appApi, {
           query,
           userId,
@@ -797,6 +845,16 @@ export function createPropertyTools(appApi: AgentToolsApi) {
             query,
             includeImages,
           );
+          if (userId && userId !== "anonymous") {
+            await storeSearchSummaryInMemory(ctx, {
+              userId,
+              threadId,
+              query,
+              locationHint: extractQueryLocation(query),
+              budgetHint: extractQueryPriceHint(query),
+              findingsCount: enrichedResults.length,
+            });
+          }
           console.log("[tools.smartPropertySearch] complete", {
             source: "search_memory",
             resultCount: enrichedResults.length,
@@ -898,6 +956,17 @@ export function createPropertyTools(appApi: AgentToolsApi) {
             };
           })
           .slice(0, Math.min(limit, 5));
+
+        if (userId && userId !== "anonymous") {
+          await storeSearchSummaryInMemory(ctx, {
+            userId,
+            threadId,
+            query,
+            locationHint: queryLocationHint ?? extractQueryLocation(query) ?? enrichedResults[0]?.locationHint,
+            budgetHint: queryPriceHint ?? enrichedResults[0]?.priceHint,
+            findingsCount: enrichedResults.length,
+          });
+        }
 
         console.log("[tools.smartPropertySearch] complete", {
           source: "search_agent",
@@ -1075,10 +1144,10 @@ export function createPropertyTools(appApi: AgentToolsApi) {
             body: JSON.stringify({ q: `${query} property images`, num: 15 }),
           }),
         ]);
-        if (!res.ok) {
-          await res.text();
+        if (!res?.ok) {
+          const errText = res ? await res.text() : "no response";
           return toonEncode({
-            error: `Search failed: ${res.status}`,
+            error: `Search failed: ${res?.status ?? "unknown"} ${errText}`,
             snippet: null,
             url: null,
           });
@@ -1086,7 +1155,7 @@ export function createPropertyTools(appApi: AgentToolsApi) {
         const data = (await res.json()) as {
           organic?: Array<{ title?: string; link?: string; snippet?: string }>;
         };
-        const imageData = imageRes.ok
+        const imageData = imageRes?.ok
           ? ((await imageRes.json()) as {
               images?: Array<{
                 imageUrl?: string;

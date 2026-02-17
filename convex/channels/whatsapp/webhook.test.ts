@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildSinglePropertyDetailQueue,
   buildWhatsAppOfferSendQueue,
   ensureOfferQueueHasImageFallback,
   normalizeWhatsAppImageUrls,
@@ -166,6 +167,44 @@ describe("buildWhatsAppOfferSendQueue", () => {
       type: "text",
       text: "If this option fits you, reply with interested and I will arrange the next step.",
     });
+  });
+});
+
+describe("buildSinglePropertyDetailQueue", () => {
+  it("sends all images first (no caption), then one text block with description, link, and CTA", () => {
+    const queue = buildSinglePropertyDetailQueue({
+      text: "3BR apartment in Riyadh. Price: 1.2M SAR.",
+      imageUrl: "https://img.example.com/1.jpg",
+      imageUrls: [
+        "https://img.example.com/1.jpg",
+        "https://img.example.com/2.jpg",
+        "https://img.example.com/3.jpg",
+      ],
+      link: "https://example.com/listing/123",
+    });
+
+    expect(queue).toHaveLength(4);
+    expect(queue[0]).toEqual({ type: "image", imageUrl: "https://img.example.com/1.jpg" });
+    expect(queue[1]).toEqual({ type: "image", imageUrl: "https://img.example.com/2.jpg" });
+    expect(queue[2]).toEqual({ type: "image", imageUrl: "https://img.example.com/3.jpg" });
+    expect(queue[3].type).toBe("text");
+    expect((queue[3] as { type: "text"; text: string }).text).toContain("3BR apartment in Riyadh");
+    expect((queue[3] as { type: "text"; text: string }).text).toContain(
+      "https://example.com/listing/123"
+    );
+    expect((queue[3] as { type: "text"; text: string }).text).toContain(
+      "If this option fits you"
+    );
+  });
+
+  it("handles block with single imageUrl", () => {
+    const queue = buildSinglePropertyDetailQueue({
+      text: "Villa in Jeddah",
+      imageUrl: "https://img.example.com/solo.jpg",
+    });
+    expect(queue).toHaveLength(2);
+    expect(queue[0]).toEqual({ type: "image", imageUrl: "https://img.example.com/solo.jpg" });
+    expect(queue[1].type).toBe("text");
   });
 });
 

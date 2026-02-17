@@ -32,7 +32,7 @@ function shapeRealEstateQuery(query: string): string {
 export function createWebTools(_appApi: AgentToolsApi) {
   const webSearch = createTool({
     description:
-      "Search the web for current information. Use when the user asks about market news, recent prices, trends, or anything that needs up-to-date web information. Returns a list of results with title, url, and snippet.",
+      "Search the web for current information. Use when the user asks about market news, recent prices, trends, or anything that needs up-to-date web information. Returns a list of results with title, url, and snippet. Use deep: true for broad or comprehensive questions.",
     args: z.object({
       query: z
         .string()
@@ -43,15 +43,26 @@ export function createWebTools(_appApi: AgentToolsApi) {
         .number()
         .optional()
         .default(5)
-        .describe("Max number of results (default 5)"),
+        .describe("Max number of results (default 5, use 10 for broad questions)"),
+      deep: z
+        .boolean()
+        .optional()
+        .default(false)
+        .describe("When true, runs 2 related queries and merges results for comprehensive answers"),
     }),
-    handler: async (ctx, { query, num }) => {
-      debugLog("tools.webSearch", "start", { query, num });
+    handler: async (ctx, { query, num, deep }) => {
+      const effectiveNum = deep ? Math.max(num, 10) : num;
+      debugLog("tools.webSearch", "start", { query, num: effectiveNum, deep });
       try {
-        const cached = await serperCache.fetch(ctx as any, { query, num });
-        if (!cached.ok) {
-          debugLog("tools.webSearch", "error", { error: cached.error });
-          return toonEncode({ error: cached.error });
+        const cached = await serperCache.fetch(ctx as any, {
+          query,
+          num: effectiveNum,
+          deep,
+        });
+        if (!cached?.ok) {
+          const err = cached?.error ?? "unknown";
+          debugLog("tools.webSearch", "error", { error: err });
+          return toonEncode({ error: err });
         }
         debugLog("tools.webSearch", "success", {
           query,
@@ -78,7 +89,7 @@ export function createWebTools(_appApi: AgentToolsApi) {
 
   const searchRealEstateInfo = createTool({
     description:
-      "Search for real estate market info. Use for 'what's the market like in X', 'market trends', 'market conditions', mortgage rates, best neighborhoods, regulations, area guides. Do NOT use for property listings (use smartPropertySearch instead).",
+      "Search for real estate market info. Use for 'what's the market like in X', 'market trends', 'market conditions', mortgage rates, best neighborhoods, regulations, area guides. Do NOT use for property listings (use smartPropertySearch instead). Use deep: true for broad or comprehensive questions.",
     args: z.object({
       query: z
         .string()
@@ -89,22 +100,30 @@ export function createWebTools(_appApi: AgentToolsApi) {
         .number()
         .optional()
         .default(5)
-        .describe("Max number of results (default 5)"),
+        .describe("Max number of results (default 5, use 10 for broad questions)"),
+      deep: z
+        .boolean()
+        .optional()
+        .default(false)
+        .describe("When true, runs 2 related queries and merges results for comprehensive answers"),
     }),
-    handler: async (ctx, { query, num }) => {
+    handler: async (ctx, { query, num, deep }) => {
       // #region agent log
       fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/agents/anan/tools/web.ts:searchRealEstateInfo',message:'tool invoked',data:{tool:'searchRealEstateInfo',queryPreview:String(query).slice(0,60),queryLen:query.length},hypothesisId:'agent_tool_searchRealEstateInfo',timestamp:Date.now()})}).catch(()=>{});
       // #endregion
-      debugLog("tools.searchRealEstateInfo", "start", { query, num });
+      const effectiveNum = deep ? Math.max(num, 10) : num;
+      debugLog("tools.searchRealEstateInfo", "start", { query, num: effectiveNum, deep });
       const shapedQuery = shapeRealEstateQuery(query);
       try {
         const cached = await serperCache.fetch(ctx as any, {
           query: shapedQuery,
-          num,
+          num: effectiveNum,
+          deep,
         });
-        if (!cached.ok) {
-          debugLog("tools.searchRealEstateInfo", "error", { error: cached.error });
-          return toonEncode({ error: cached.error });
+        if (!cached?.ok) {
+          const err = cached?.error ?? "unknown";
+          debugLog("tools.searchRealEstateInfo", "error", { error: err });
+          return toonEncode({ error: err });
         }
         debugLog("tools.searchRealEstateInfo", "success", {
           query: shapedQuery,
