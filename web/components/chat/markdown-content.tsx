@@ -83,16 +83,8 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
               );
             }
 
-            return (
-              <a
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-400 hover:text-blue-300 underline break-all"
-              >
-                {children}
-              </a>
-            );
+            // End-user channels should not expose raw source links.
+            return <span className="text-foreground/90">{children}</span>;
           },
           code: ({ className: codeClassName, children, ...props }) => {
             const isInline = !codeClassName;

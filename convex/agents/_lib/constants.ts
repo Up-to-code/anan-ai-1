@@ -141,9 +141,49 @@ export const PREFERRED_PROPERTY_SOURCE_DOMAINS: string[] = [
   "luxuryhomes.ae",
 ];
 
+/** High-priority Saudi property portals for targeted web search expansion. */
+export const SAUDI_PROPERTY_PRIORITY_DOMAINS: string[] = [
+  "wasalt.sa",
+  "bayut.sa",
+  "propertyfinder.sa",
+  "aqar.forsale",
+  "sa.aqar.forsale",
+  "opensooq.com",
+  "olx.com.sa",
+  "haraj.com.sa",
+  "mubawab.sa",
+  "realestate.sa",
+  "sakan.sa",
+  "ejar.sa",
+];
+
+/** High-priority Japan property portals for targeted web search expansion. */
+export const JAPAN_PROPERTY_PRIORITY_DOMAINS: string[] = [
+  "suumo.jp",
+  "homes.co.jp",
+  "athome.co.jp",
+  "chintai.net",
+  "realestate.yahoo.co.jp",
+  "fudosan.or.jp",
+  "apamanshop.com",
+  "able.co.jp",
+  "mini-mini.jp",
+  "house.goo.ne.jp",
+  "kenbiya.com",
+  "wagaya-japan.com",
+];
+
+/** Total popular Saudi + Japan domains for deep web discovery (>=20). */
+export const INTERNATIONAL_PROPERTY_PRIORITY_DOMAINS: string[] = [
+  ...SAUDI_PROPERTY_PRIORITY_DOMAINS,
+  ...JAPAN_PROPERTY_PRIORITY_DOMAINS,
+];
+
 export const TOP_SOURCE_LIMIT = 3;
 export const TOP_CARDS_PER_SOURCE_LIMIT = 3;
 export const TOP_CARDS_PER_SOURCE = TOP_CARDS_PER_SOURCE_LIMIT;
+/** Number of top candidate properties to deeply enrich per search run. */
+export const DETAIL_ENRICHMENT_LIMIT = 3;
 export const MIN_CONFIDENCE_FOR_USER = 0.4;
 export const PARALLEL_DETAIL_BATCH = 3;
 export const SEARCH_CIRCUIT_BREAKER_MS = 8000;

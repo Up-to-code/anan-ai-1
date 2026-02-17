@@ -13,6 +13,17 @@ type UIMessagePart = {
   output?: unknown;
 };
 
+function toolLabel(toolName: string): string {
+  if (!toolName) return "تنفيذ أداة";
+  if (toolName.includes("smartPropertySearch")) return "البحث عن عقارات";
+  if (toolName.includes("getMoreDetailsForProperty")) return "جلب تفاصيل العقار";
+  if (toolName.includes("webSearch") || toolName.includes("searchRealEstateInfo"))
+    return "بحث الويب";
+  if (toolName.includes("format")) return "تنسيق المحتوى";
+  if (toolName.includes("judge")) return "تقييم الجودة";
+  return toolName;
+}
+
 function tryDecodeToon(output: unknown): unknown {
   if (typeof output !== "string") return output;
   try {
@@ -92,10 +103,34 @@ function getToolOutputs(parts: UIMessagePart[] = []): Array<{ toolName: string; 
   return outputs;
 }
 
+function getToolEvents(parts: UIMessagePart[] = []): Array<{
+  name: string;
+  label: string;
+  state: "running" | "done";
+}> {
+  const events: Array<{ name: string; label: string; state: "running" | "done" }> = [];
+  for (const part of parts) {
+    if (part.type === "tool-call") {
+      const input = (part.input ?? {}) as Record<string, unknown>;
+      const name = String(input.toolName ?? "").trim();
+      if (!name) continue;
+      events.push({ name, label: toolLabel(name), state: "running" });
+      continue;
+    }
+    if (part.type?.startsWith("tool-") && part.type !== "tool-call") {
+      const name = part.type.replace("tool-", "");
+      events.push({ name, label: toolLabel(name), state: "done" });
+    }
+  }
+  return events.slice(-6);
+}
+
 export function uiMessageToMessage(uiMsg: {
   role?: string;
   key: string;
   text: string;
+  _creationTime?: number;
+  creationTime?: number;
   parts?: UIMessagePart[];
 }): Message {
   const isAi = uiMsg.role === "assistant";
@@ -108,6 +143,8 @@ export function uiMessageToMessage(uiMsg: {
     .filter((t) => t.toolName === "getBankBundles")
     .flatMap((t) => parseBanks(t.output));
 
+  const toolEvents = isAi ? getToolEvents(parts) : [];
+
   let type: ComponentType = "text";
   let data: unknown = null;
 
@@ -117,14 +154,32 @@ export function uiMessageToMessage(uiMsg: {
   } else if (banks.length > 0) {
     type = banks.length === 1 ? "bank" : "bank-list";
     data = banks.length === 1 ? banks[0] : banks;
+  } else if (isAi && (uiMsg.text ?? "").trim().length > 0) {
+    type = "streaming";
+    data = {
+      text: uiMsg.text,
+      toolEvents,
+    };
   }
+
+  const createdAtMs =
+    typeof uiMsg._creationTime === "number"
+      ? uiMsg._creationTime
+      : typeof uiMsg.creationTime === "number"
+        ? uiMsg.creationTime
+        : null;
+  const createdAt = createdAtMs ? new Date(createdAtMs) : new Date();
 
   return {
     id: uiMsg.key,
     content: uiMsg.text,
     isAi: !!isAi,
-    timestamp: new Date().toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" }),
+    timestamp: createdAt.toLocaleTimeString("ar-SA", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
     type,
     data: data || undefined,
+    toolEvents,
   };
 }

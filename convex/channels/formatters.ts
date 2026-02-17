@@ -482,7 +482,7 @@ export function formatForChannel(
     offerBlocks = extractOfferBlocksFromToolOutput(
       rawToolOutput,
       5,
-      channel !== "whatsapp",
+      false,
       channel,
       preferredLanguage,
     );
@@ -521,6 +521,9 @@ export function formatForChannel(
     };
   }
 
+  // Hide non-image links for end-user channels (web/app/whatsapp).
+  const cleanText = stripAllNonImageUrlsFromText(text);
+
   // Keep app/web backward-compatible with single-image consumers.
-  return { text, imageUrl, offerBlocks };
+  return { text: cleanText, imageUrl, offerBlocks };
 }

@@ -1,9 +1,8 @@
 "use client";
 
 import { memo, useCallback, useState } from "react";
-import { cn } from "@/lib/utils";
+import { Bot, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Copy } from "lucide-react";
 import { Message } from "./types";
 import { CouponCard } from "./chat-data-views";
 import { ComponentMapper } from "./component-mapper";
@@ -11,83 +10,94 @@ import { MarkdownContent } from "./markdown-content";
 
 interface ChatBubbleProps {
   message: Message;
-  index?: number;
 }
 
-function DetailsRow({
+function MessageMeta({
   timestamp,
-  onCopy,
   canCopy,
-  alignEnd,
-  showCopyOnHover,
+  onCopy,
+  align,
 }: {
   timestamp: string;
-  onCopy: () => void;
   canCopy: boolean;
-  alignEnd?: boolean;
-  showCopyOnHover?: boolean;
+  onCopy: () => void;
+  align: "start" | "end";
 }) {
   const [copied, setCopied] = useState(false);
   const handleCopy = useCallback(() => {
     onCopy();
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    window.setTimeout(() => setCopied(false), 1500);
   }, [onCopy]);
 
   return (
     <div
-      className={cn(
-        "flex items-center gap-2 mt-1.5 px-1 text-[10px] text-muted-foreground/80",
-        alignEnd && "justify-end",
-        showCopyOnHover &&
-        "opacity-0 group-hover:opacity-100 transition-opacity",
-      )}
+      className={`mt-1 flex items-center gap-2 px-1 text-[10px] text-muted-foreground/75 ${
+        align === "end" ? "justify-end" : ""
+      }`}
     >
       <span>{timestamp}</span>
-      {canCopy && (
+      {canCopy ? (
         <Button
           variant="ghost"
           size="sm"
-          className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+          className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
           onClick={handleCopy}
           aria-label={copied ? "تم النسخ" : "نسخ"}
         >
           <Copy className="h-3 w-3" />
         </Button>
-      )}
+      ) : null}
     </div>
   );
 }
 
-export const ChatBubble = memo(
-  function ChatBubble({ message }: ChatBubbleProps) {
-    const { content, isAi, timestamp, type, data } = message;
-    const contentStr =
-      typeof content === "string" ? content : String(content ?? "");
+export const ChatBubble = memo(function ChatBubble({ message }: ChatBubbleProps) {
+  const { content, isAi, timestamp, type, data } = message;
+  const contentStr = typeof content === "string" ? content : String(content ?? "");
+  const shouldRenderInlineText =
+    Boolean(contentStr) && !(type && type !== "text" && type === "streaming");
 
-    const handleCopy = useCallback(() => {
-      if (contentStr) {
-        void navigator.clipboard.writeText(contentStr);
-      }
-    }, [contentStr]);
+  const handleCopy = useCallback(() => {
+    if (!contentStr) return;
+    void navigator.clipboard.writeText(contentStr);
+  }, [contentStr]);
 
-    if (isAi) {
-      return (
-        <article
-          dir="rtl"
-          className="w-full group py-3"
-          style={{ scrollMarginBottom: "16px" }}
-          role="article"
-        >
-          <div className="w-full flex flex-col gap-3">
-            {contentStr ? (
-              <div className="w-full max-w-prose prose prose-sm sm:prose-base !max-w-none dark:prose-invert prose-p:leading-relaxed prose-headings:font-bold text-foreground/90">
+  if (!isAi) {
+    return (
+      <div className="py-2" dir="rtl">
+        <div className="flex justify-end">
+          <div className="max-w-[88%] sm:max-w-[74%]">
+            <div className="rounded-2xl rounded-tr-sm bg-primary px-4 py-2.5 text-sm leading-relaxed text-primary-foreground sm:text-[15px]">
+              <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{contentStr}</p>
+            </div>
+            <MessageMeta
+              timestamp={timestamp}
+              canCopy={Boolean(contentStr)}
+              onCopy={handleCopy}
+              align="end"
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <article className="py-2.5" dir="rtl" role="article">
+      <div className="flex items-start gap-2">
+        <div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
+          <Bot className="h-3.5 w-3.5" />
+        </div>
+        <div className="w-full min-w-0">
+          <div className="rounded-2xl rounded-tl-sm border border-border/35 bg-background/85 px-4 py-3">
+            {shouldRenderInlineText ? (
+              <div className="prose prose-sm !max-w-none text-foreground dark:prose-invert prose-p:leading-relaxed prose-headings:font-bold">
                 <MarkdownContent content={contentStr} />
               </div>
             ) : null}
-
             {type && type !== "text" && data != null ? (
-              <div className="w-full mt-2">
+              <div className="mt-3">
                 {type === "coupon" ? (
                   <CouponCard
                     coupon={
@@ -100,47 +110,14 @@ export const ChatBubble = memo(
               </div>
             ) : null}
           </div>
-
-          <DetailsRow
+          <MessageMeta
             timestamp={timestamp}
+            canCopy={Boolean(contentStr)}
             onCopy={handleCopy}
-            canCopy={!!contentStr}
-            showCopyOnHover
-          />
-        </article>
-      );
-    }
-
-    return (
-      <div
-        dir="rtl"
-        className="w-full group py-2 flex justify-end"
-        style={{ scrollMarginBottom: "16px" }}
-        role="group"
-      >
-        <div className="flex flex-col items-end min-w-0 max-w-[85%] sm:max-w-[75%]">
-          <div className="px-4 py-2.5 text-[15px] sm:text-[16px] bg-primary/95 text-primary-foreground rounded-[1.25rem] rounded-tr-none leading-relaxed break-words shadow-sm">
-            {contentStr ? (
-              <p className="whitespace-pre-wrap text-right leading-relaxed break-words overflow-wrap-anywhere">
-                {contentStr}
-              </p>
-            ) : null}
-          </div>
-
-          <DetailsRow
-            timestamp={timestamp}
-            onCopy={handleCopy}
-            canCopy={!!contentStr}
-            alignEnd
+            align="start"
           />
         </div>
       </div>
-    );
-  },
-  (prevProps: ChatBubbleProps, nextProps: ChatBubbleProps) => {
-    return (
-      prevProps.message.id === nextProps.message.id &&
-      prevProps.message.content === nextProps.message.content
-    );
-  },
-);
+    </article>
+  );
+});

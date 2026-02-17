@@ -137,7 +137,18 @@ function normalizeLocationHint(
   return value;
 }
 
+function normalizeUrlKey(url: string | undefined): string | null {
+  if (!url) return null;
+  return url.trim().replace(/\/+$/, "").toLowerCase() || null;
+}
+
+function shouldExcludePreviousResults(query: string, refreshToken?: string): boolean {
+  return Boolean(refreshToken) || isRefreshIntent(query);
+}
+
 type CachedFinding = {
+  sourceUrl?: string;
+  sourceTitle?: string;
   title: string;
   description?: string;
   priceHint?: string;
@@ -148,6 +159,8 @@ type CachedFinding = {
   features?: string[];
   beds?: string;
   propertyUrl?: string;
+  detailSourceUrl?: string;
+  detailFetched?: boolean;
 };
 
 function normalizeCachedFindingsToUserResults(
@@ -156,6 +169,10 @@ function normalizeCachedFindingsToUserResults(
   query: string,
   includeImages: boolean,
 ): Array<{
+  sourceUrl?: string;
+  sourceTitle?: string;
+  externalUrl?: string;
+  url?: string;
   title: string;
   description?: string;
   imageUrl?: string;
@@ -176,6 +193,10 @@ function normalizeCachedFindingsToUserResults(
     return {
       title: sanitizeWebText(f.title),
       description: sanitizeWebText(f.description, "Property listing"),
+      sourceUrl: sanitizeWebText(f.sourceUrl),
+      sourceTitle: sanitizeWebText(f.sourceTitle),
+      externalUrl: sanitizeWebText(f.propertyUrl ?? f.detailSourceUrl),
+      url: sanitizeWebText(f.propertyUrl ?? f.detailSourceUrl),
       imageUrl: includeImages ? imageUrls[0] : undefined,
       imageUrls,
       priceHint: normalizePriceHint(f.priceHint, queryPriceHint),
@@ -300,6 +321,47 @@ async function resolveSearchRefreshOffset(
     return Math.min((previousCount + 1) * 10, 40);
   } catch {
     return 10;
+  }
+}
+
+async function resolveExcludedPropertyUrls(
+  ctx: unknown,
+  appApi: AgentToolsApi,
+  userId: string | undefined,
+  threadId: string | undefined,
+  query: string,
+  refreshToken?: string,
+): Promise<string[]> {
+  if (!userId || userId === "anonymous") return [];
+  if (!shouldExcludePreviousResults(query, refreshToken)) return [];
+  const runQuery = (
+    ctx as { runQuery?: (ref: unknown, args: unknown) => Promise<unknown> }
+  ).runQuery;
+  if (typeof runQuery !== "function") return [];
+  try {
+    const lastFindings = (await runQuery(appApi.properties.getLastSearchFindings, {
+      userId,
+      threadId,
+      maxFindings: 50,
+    })) as
+      | {
+          findings?: Array<{
+            propertyUrl?: string;
+            detailSourceUrl?: string;
+          }>;
+        }
+      | null;
+    if (!lastFindings?.findings?.length) return [];
+    return Array.from(
+      new Set(
+        lastFindings.findings
+          .flatMap((f) => [f.propertyUrl, f.detailSourceUrl])
+          .map((url) => normalizeUrlKey(url))
+          .filter((url): url is string => Boolean(url)),
+      ),
+    );
+  } catch {
+    return [];
   }
 }
 
@@ -483,6 +545,8 @@ function shouldPreferWebFallback(
 }
 
 function normalizeDbResultsForOutput(results: DbPropertyResult[]): Array<{
+  sourceUrl?: string;
+  sourceTitle?: string;
   title?: string;
   description?: string;
   imageUrl?: string;
@@ -513,6 +577,8 @@ function normalizeDbResultsForOutput(results: DbPropertyResult[]): Array<{
         ? String(result.price)
         : sanitizeWebText(result.price);
     return {
+      sourceUrl: "internal://properties",
+      sourceTitle: "Internal property database",
       title: sanitizeWebText(result.title),
       description: sanitizeWebText(result.description),
       imageUrl: imageUrls[0],
@@ -529,6 +595,81 @@ function normalizeDbResultsForOutput(results: DbPropertyResult[]): Array<{
       area: sanitizeWebText(result.area),
     };
   });
+}
+
+function filterCachedFindingsByExcludedUrls(
+  findings: CachedFinding[],
+  excludedUrlKeys: Set<string>,
+): CachedFinding[] {
+  if (excludedUrlKeys.size === 0) return findings;
+  return findings.filter((finding) => {
+    const key = normalizeUrlKey(finding.propertyUrl ?? finding.detailSourceUrl);
+    return !key || !excludedUrlKeys.has(key);
+  });
+}
+
+function filterDbResultsByExcludedUrls(
+  results: DbPropertyResult[],
+  excludedUrlKeys: Set<string>,
+): DbPropertyResult[] {
+  if (excludedUrlKeys.size === 0) return results;
+  return results.filter((result) => {
+    const key = normalizeUrlKey(result.externalUrl ?? result.url);
+    return !key || !excludedUrlKeys.has(key);
+  });
+}
+
+function filterUserResultsByExcludedUrls<
+  T extends { externalUrl?: string; url?: string },
+>(results: T[], excludedUrlKeys: Set<string>): T[] {
+  if (excludedUrlKeys.size === 0) return results;
+  return results.filter((result) => {
+    const key = normalizeUrlKey(result.externalUrl ?? result.url);
+    return !key || !excludedUrlKeys.has(key);
+  });
+}
+
+function extractDomainFromUrl(url: string | undefined): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+async function runSerperImageQueries(
+  apiKey: string,
+  queries: string[],
+): Promise<string[]> {
+  const responses = await Promise.all(
+    queries.map((q) =>
+      fetch("https://google.serper.dev/images", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-KEY": apiKey,
+        },
+        body: JSON.stringify({ q, num: 20 }),
+      }).catch(() => null),
+    ),
+  );
+  const imageUrls: string[] = [];
+  for (const res of responses) {
+    if (!res?.ok) continue;
+    try {
+      const payload = (await res.json()) as {
+        images?: Array<{ imageUrl?: string; image?: string }>;
+      };
+      for (const item of payload.images ?? []) {
+        const url = item.imageUrl ?? item.image;
+        if (url && url.startsWith("http")) imageUrls.push(url);
+      }
+    } catch {
+      continue;
+    }
+  }
+  return Array.from(new Set(imageUrls));
 }
 
 function buildColumnTestSyntheticResults(
@@ -654,6 +795,15 @@ export function createPropertyTools(appApi: AgentToolsApi) {
         query,
         refreshToken,
       );
+      const excludedPropertyUrls = await resolveExcludedPropertyUrls(
+        ctx,
+        appApi,
+        userId,
+        threadId,
+        query,
+        refreshToken,
+      );
+      const excludedUrlKeys = new Set(excludedPropertyUrls);
 
       console.log("[tools.smartPropertySearch] start", {
         query,
@@ -661,6 +811,7 @@ export function createPropertyTools(appApi: AgentToolsApi) {
         includeImages,
         hasUserId: Boolean(userId),
         channel,
+        excludedPreviousResults: excludedUrlKeys.size,
       });
       // #region agent log
       fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/agents/anan/tools/property.ts:smartPropertySearch',message:'tool invoked',data:{tool:'smartPropertySearch',queryPreview:String(query).slice(0,60),queryLen:query.length},hypothesisId:'agent_tool_smartPropertySearch',timestamp:Date.now()})}).catch(()=>{});
@@ -674,7 +825,7 @@ export function createPropertyTools(appApi: AgentToolsApi) {
         status: "success",
       });
 
-      const dbResults = await withDebugTiming(
+      const rawDbResults = await withDebugTiming(
         "tools.smartPropertySearch",
         "db_search",
         { query, limit },
@@ -684,9 +835,14 @@ export function createPropertyTools(appApi: AgentToolsApi) {
             limit,
           }),
       );
+      const dbResults = filterDbResultsByExcludedUrls(
+        (Array.isArray(rawDbResults) ? rawDbResults : []) as DbPropertyResult[],
+        excludedUrlKeys,
+      );
       console.log("[tools.smartPropertySearch] db_search:result", {
-        count: Array.isArray(dbResults) ? dbResults.length : 0,
-        hasResults: Array.isArray(dbResults) && dbResults.length > 0,
+        count: Array.isArray(rawDbResults) ? rawDbResults.length : 0,
+        filteredCount: dbResults.length,
+        hasResults: dbResults.length > 0,
       });
 
       await logSearchLifecycle(ctx, appApi, {
@@ -694,33 +850,26 @@ export function createPropertyTools(appApi: AgentToolsApi) {
         userId,
         channel,
         stage: "db_checked",
-        status:
-          Array.isArray(dbResults) && dbResults.length > 0
-            ? "success"
-            : "empty",
-        source:
-          Array.isArray(dbResults) && dbResults.length > 0
-            ? "internal_db"
-            : undefined,
-        resultCount: Array.isArray(dbResults) ? dbResults.length : 0,
+        status: dbResults.length > 0 ? "success" : "empty",
+        source: dbResults.length > 0 ? "internal_db" : undefined,
+        resultCount: dbResults.length,
       });
 
       const dbDecision = shouldPreferWebFallback(
         query,
-        (Array.isArray(dbResults) ? dbResults : []) as DbPropertyResult[],
+        dbResults,
         limit,
       );
+      const forceWebForRefresh =
+        excludedUrlKeys.size > 0 && dbResults.length < Math.min(limit, 2);
       console.log("[tools.smartPropertySearch] db_decision", {
         preferWeb: dbDecision.preferWeb,
+        forceWebForRefresh,
         reason: dbDecision.reason,
         bestScore: dbDecision.bestScore,
       });
 
-      if (
-        Array.isArray(dbResults) &&
-        dbResults.length > 0 &&
-        !dbDecision.preferWeb
-      ) {
+      if (dbResults.length > 0 && !dbDecision.preferWeb && !forceWebForRefresh) {
         if (userId && userId !== "anonymous") {
           await logKnowledgeResearchRecord(
             ctx,
@@ -730,7 +879,7 @@ export function createPropertyTools(appApi: AgentToolsApi) {
               userId,
               channel,
               threadId,
-              dbResults: dbResults as DbPropertyResult[],
+              dbResults,
             }),
           );
           await storeSearchSummaryInMemory(ctx, {
@@ -763,7 +912,7 @@ export function createPropertyTools(appApi: AgentToolsApi) {
             ar: searchStartedMessageAr,
           },
           source: "internal_db",
-          results: normalizeDbResultsForOutput(dbResults as DbPropertyResult[]),
+          results: normalizeDbResultsForOutput(dbResults),
           presentationGuidance: {
             avoidProviderNames: true,
             includeLinksOnlyOnUserRequest: true,
@@ -823,7 +972,9 @@ export function createPropertyTools(appApi: AgentToolsApi) {
       }
 
       const skipCache =
-        !userId || userId === "anonymous" || refreshToken === "more";
+        !userId ||
+        userId === "anonymous" ||
+        shouldExcludePreviousResults(query, refreshToken);
       if (!skipCache) {
         const cached = await ctx.runQuery(
           appApi.properties.getCachedSearchResults,
@@ -839,50 +990,60 @@ export function createPropertyTools(appApi: AgentToolsApi) {
           cached?.propertyFindings &&
           cached.propertyFindings.length >= Math.min(limit, 3)
         ) {
-          const enrichedResults = normalizeCachedFindingsToUserResults(
-            cached.propertyFindings,
-            limit,
-            query,
-            includeImages,
+          const cachedFindings = filterCachedFindingsByExcludedUrls(
+            cached.propertyFindings as CachedFinding[],
+            excludedUrlKeys,
           );
-          if (userId && userId !== "anonymous") {
-            await storeSearchSummaryInMemory(ctx, {
-              userId,
-              threadId,
+          if (cachedFindings.length === 0) {
+            console.log("[tools.smartPropertySearch] cache_skipped:excluded_all", {
+              originalCount: cached.propertyFindings.length,
+            });
+          } else {
+            const enrichedResults = normalizeCachedFindingsToUserResults(
+              cachedFindings,
+              limit,
               query,
-              locationHint: extractQueryLocation(query),
-              budgetHint: extractQueryPriceHint(query),
-              findingsCount: enrichedResults.length,
+              includeImages,
+            );
+            if (userId && userId !== "anonymous") {
+              await storeSearchSummaryInMemory(ctx, {
+                userId,
+                threadId,
+                query,
+                locationHint: extractQueryLocation(query),
+                budgetHint: extractQueryPriceHint(query),
+                findingsCount: enrichedResults.length,
+              });
+            }
+            console.log("[tools.smartPropertySearch] complete", {
+              source: "search_memory",
+              resultCount: enrichedResults.length,
+            });
+            await logSearchLifecycle(ctx, appApi, {
+              query,
+              userId,
+              channel,
+              stage: "completed",
+              status: "success",
+              source: "search_memory",
+              resultCount: enrichedResults.length,
+            });
+            return toonEncode({
+              searchStarted: true,
+              searchStartedMessage,
+              localizedSearchStartedMessage: {
+                en: searchStartedMessageEn,
+                ar: searchStartedMessageAr,
+              },
+              source: "search_memory",
+              results: enrichedResults,
+              presentationGuidance: {
+                avoidProviderNames: true,
+                includeLinksOnlyOnUserRequest: true,
+                imageFirstFormatting: true,
+              },
             });
           }
-          console.log("[tools.smartPropertySearch] complete", {
-            source: "search_memory",
-            resultCount: enrichedResults.length,
-          });
-          await logSearchLifecycle(ctx, appApi, {
-            query,
-            userId,
-            channel,
-            stage: "completed",
-            status: "success",
-            source: "search_memory",
-            resultCount: enrichedResults.length,
-          });
-          return toonEncode({
-            searchStarted: true,
-            searchStartedMessage,
-            localizedSearchStartedMessage: {
-              en: searchStartedMessageEn,
-              ar: searchStartedMessageAr,
-            },
-            source: "search_memory",
-            results: enrichedResults,
-            presentationGuidance: {
-              avoidProviderNames: true,
-              includeLinksOnlyOnUserRequest: true,
-              imageFirstFormatting: true,
-            },
-          });
         }
       }
 
@@ -912,6 +1073,7 @@ export function createPropertyTools(appApi: AgentToolsApi) {
             refreshToken,
             offset: refreshOffset,
             threadId,
+            excludedPropertyUrls,
           }),
       );
 
@@ -935,10 +1097,19 @@ export function createPropertyTools(appApi: AgentToolsApi) {
         );
       }
 
-      if (searchResult.success && searchResult.userResults.length > 0) {
+      if (searchResult.success) {
+        const freshUserResults = filterUserResultsByExcludedUrls(
+          searchResult.userResults,
+          excludedUrlKeys,
+        );
+        if (freshUserResults.length === 0) {
+          console.log("[tools.smartPropertySearch] search_agent:excluded_all", {
+            originalCount: searchResult.userResults.length,
+          });
+        }
         const queryPriceHint = extractQueryPriceHint(query);
         const queryLocationHint = extractQueryLocationHint(query);
-        const enrichedResults = searchResult.userResults
+        const enrichedResults = freshUserResults
           .map((r) => {
             const textBlob = `${r.title} ${r.description}`;
             return {
@@ -957,58 +1128,67 @@ export function createPropertyTools(appApi: AgentToolsApi) {
           })
           .slice(0, Math.min(limit, 5));
 
-        if (userId && userId !== "anonymous") {
-          await storeSearchSummaryInMemory(ctx, {
-            userId,
-            threadId,
+        if (enrichedResults.length === 0) {
+          console.log("[tools.smartPropertySearch] search_agent:no_fresh_results", {
+            originalCount: searchResult.userResults.length,
+          });
+        } else {
+          if (userId && userId !== "anonymous") {
+            await storeSearchSummaryInMemory(ctx, {
+              userId,
+              threadId,
+              query,
+              locationHint:
+                queryLocationHint ??
+                extractQueryLocation(query) ??
+                enrichedResults[0]?.locationHint,
+              budgetHint: queryPriceHint ?? enrichedResults[0]?.priceHint,
+              findingsCount: enrichedResults.length,
+            });
+          }
+
+          console.log("[tools.smartPropertySearch] complete", {
+            source: "search_agent",
+            resultCount: enrichedResults.length,
+            durationMs: searchResult.durationMs,
+          });
+          await logSearchLifecycle(ctx, appApi, {
             query,
-            locationHint: queryLocationHint ?? extractQueryLocation(query) ?? enrichedResults[0]?.locationHint,
-            budgetHint: queryPriceHint ?? enrichedResults[0]?.priceHint,
-            findingsCount: enrichedResults.length,
+            userId,
+            channel,
+            stage: "completed",
+            status: "success",
+            source: "serper",
+            resultCount: enrichedResults.length,
+          });
+          return toonEncode({
+            searchStarted: true,
+            searchStartedMessage,
+            localizedSearchStartedMessage: {
+              en: searchStartedMessageEn,
+              ar: searchStartedMessageAr,
+            },
+            source: "web_fallback",
+            refreshOffset,
+            results: enrichedResults,
+            knowledgeResearch: {
+              taskList: searchResult.knowledgePayload.taskList,
+              searchTerms: searchResult.knowledgePayload.searchTerms,
+              sourceRuns: searchResult.knowledgePayload.sourceRuns.length,
+              findings: searchResult.knowledgePayload.propertyFindings.length,
+            },
+            presentationGuidance: {
+              avoidProviderNames: true,
+              includeLinksOnlyOnUserRequest: true,
+              imageFirstFormatting: true,
+            },
           });
         }
-
-        console.log("[tools.smartPropertySearch] complete", {
-          source: "search_agent",
-          resultCount: enrichedResults.length,
-          durationMs: searchResult.durationMs,
-        });
-        await logSearchLifecycle(ctx, appApi, {
-          query,
-          userId,
-          channel,
-          stage: "completed",
-          status: "success",
-          source: "serper",
-          resultCount: enrichedResults.length,
-        });
-        return toonEncode({
-          searchStarted: true,
-          searchStartedMessage,
-          localizedSearchStartedMessage: {
-            en: searchStartedMessageEn,
-            ar: searchStartedMessageAr,
-          },
-          source: "web_fallback",
-          refreshOffset,
-          results: enrichedResults,
-          knowledgeResearch: {
-            taskList: searchResult.knowledgePayload.taskList,
-            searchTerms: searchResult.knowledgePayload.searchTerms,
-            sourceRuns: searchResult.knowledgePayload.sourceRuns.length,
-            findings: searchResult.knowledgePayload.propertyFindings.length,
-          },
-          presentationGuidance: {
-            avoidProviderNames: true,
-            includeLinksOnlyOnUserRequest: true,
-            imageFirstFormatting: true,
-          },
-        });
       }
 
       console.log("[tools.smartPropertySearch] search_agent:fallback", {
         reason: searchResult.error ?? "no_results",
-        hasDbResults: Array.isArray(dbResults) && dbResults.length > 0,
+        hasDbResults: dbResults.length > 0,
       });
       await logSearchLifecycle(ctx, appApi, {
         query,
@@ -1020,7 +1200,7 @@ export function createPropertyTools(appApi: AgentToolsApi) {
         errorMessage: searchResult.error,
       });
 
-      if (Array.isArray(dbResults) && dbResults.length > 0) {
+      if (dbResults.length > 0) {
         if (userId && userId !== "anonymous") {
           await logKnowledgeResearchRecord(
             ctx,
@@ -1030,7 +1210,7 @@ export function createPropertyTools(appApi: AgentToolsApi) {
               userId,
               channel,
               threadId,
-              dbResults: dbResults as DbPropertyResult[],
+              dbResults,
               status: "partial",
               errorSummary: searchResult.error,
             }),
@@ -1044,7 +1224,7 @@ export function createPropertyTools(appApi: AgentToolsApi) {
             ar: searchStartedMessageAr,
           },
           source: "internal_db",
-          results: normalizeDbResultsForOutput(dbResults as DbPropertyResult[]),
+          results: normalizeDbResultsForOutput(dbResults),
           note: "I returned the closest internal matches while searching wider options.",
           presentationGuidance: {
             avoidProviderNames: true,
@@ -1105,7 +1285,7 @@ export function createPropertyTools(appApi: AgentToolsApi) {
                 },
               ],
               message:
-                "Present full description and Property Information. Channel sends images first then text (Rule 1). Include the link.",
+                "Present full description and Property Information. Channel sends images first then text (Rule 1). Do not include direct links unless the user explicitly asks.",
             });
           }
         } catch (e) {
@@ -1126,24 +1306,29 @@ export function createPropertyTools(appApi: AgentToolsApi) {
       const query =
         title && title.trim().length > 0 ? title.trim() : propertyUrl;
       try {
-        const [res, imageRes] = await Promise.all([
-          fetch("https://google.serper.dev/search", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-API-KEY": apiKey,
-            },
-            body: JSON.stringify({ q: query, num: 5 }),
-          }),
-          fetch("https://google.serper.dev/images", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-API-KEY": apiKey,
-            },
-            body: JSON.stringify({ q: `${query} property images`, num: 15 }),
-          }),
-        ]);
+        const propertyDomain = extractDomainFromUrl(propertyUrl);
+        const detailSearchQueries = Array.from(
+          new Set(
+            [
+              query,
+              propertyDomain ? `${query} site:${propertyDomain}` : "",
+              `${query} apartment details`,
+            ].filter(Boolean),
+          ),
+        );
+        const searchResponses = await Promise.all(
+          detailSearchQueries.map((q) =>
+            fetch("https://google.serper.dev/search", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-API-KEY": apiKey,
+              },
+              body: JSON.stringify({ q, num: 8 }),
+            }),
+          ),
+        );
+        const res = searchResponses[0];
         if (!res?.ok) {
           const errText = res ? await res.text() : "no response";
           return toonEncode({
@@ -1152,21 +1337,30 @@ export function createPropertyTools(appApi: AgentToolsApi) {
             url: null,
           });
         }
-        const data = (await res.json()) as {
-          organic?: Array<{ title?: string; link?: string; snippet?: string }>;
-        };
-        const imageData = imageRes?.ok
-          ? ((await imageRes.json()) as {
-              images?: Array<{
-                imageUrl?: string;
-                image?: string;
-                link?: string;
-              }>;
-            })
-          : { images: [] };
-        const organic = data.organic ?? [];
+        const organic = (
+          await Promise.all(
+            searchResponses
+              .filter((response) => response?.ok)
+              .map(async (response) => {
+                const data = (await response.json()) as {
+                  organic?: Array<{ title?: string; link?: string; snippet?: string }>;
+                };
+                return data.organic ?? [];
+              }),
+          )
+        ).flat();
         const normalizedTarget = propertyUrl.replace(/\/$/, "").toLowerCase();
-        const match = organic.find((o) => {
+        const dedupedOrganic = Array.from(
+          new Map(
+            organic
+              .filter((item) => Boolean(item.link))
+              .map((item) => [
+                (item.link ?? "").replace(/\/$/, "").toLowerCase(),
+                item,
+              ]),
+          ).values(),
+        );
+        const match = dedupedOrganic.find((o) => {
           const link = (o.link ?? "").replace(/\/$/, "").toLowerCase();
           return (
             link === normalizedTarget ||
@@ -1174,11 +1368,43 @@ export function createPropertyTools(appApi: AgentToolsApi) {
             normalizedTarget.includes(link)
           );
         });
-        const first = match ?? organic[0];
-        const allImageUrls = (imageData.images ?? [])
-          .map((item) => item.imageUrl ?? item.image)
-          .filter((url): url is string => Boolean(url));
-        const imageUrls = Array.from(new Set(allImageUrls)).slice(0, 5);
+        const first = match ?? dedupedOrganic[0];
+        const imageSearchQueries = Array.from(
+          new Set(
+            [
+              `${query} property images`,
+              `${query} apartment interior`,
+              `${query} exterior`,
+              propertyDomain ? `${query} site:${propertyDomain} images` : "",
+            ].filter(Boolean),
+          ),
+        );
+        const imageUrlsFromSearch = await runSerperImageQueries(
+          apiKey,
+          imageSearchQueries,
+        );
+        const detailCandidates = Array.from(
+          new Set(
+            [
+              propertyUrl,
+              ...dedupedOrganic
+                .map((item) => item.link ?? "")
+                .filter((url) => isLikelyPropertyDetailUrl(url))
+                .slice(0, 3),
+            ].filter(Boolean),
+          ),
+        ).slice(0, 4);
+        const detailImages = (
+          await Promise.all(
+            detailCandidates.map(async (candidateUrl) => {
+              const details = await fetchPropertyDetailsByUrl(ctx, candidateUrl);
+              return details?.imageUrls ?? [];
+            }),
+          )
+        ).flat();
+        const imageUrls = Array.from(
+          new Set([...detailImages, ...imageUrlsFromSearch]),
+        ).slice(0, 10);
         if (!first) {
           return toonEncode({
             results: [],
@@ -1196,12 +1422,12 @@ export function createPropertyTools(appApi: AgentToolsApi) {
               description: sanitizeWebText(first.snippet),
               imageUrls,
               imageUrl: imageUrls[0],
-              externalUrl: first.link ?? propertyUrl,
-              url: first.link ?? propertyUrl,
-            },
-          ],
+                externalUrl: first.link ?? propertyUrl,
+                url: first.link ?? propertyUrl,
+              },
+            ],
           message:
-            "Use this snippet to give the user a short, friendly summary of extra details (price, location, features). Keep it to one or two sentences on WhatsApp and include images when available.",
+            "Use this snippet to give the user a short, friendly summary of extra details (price, location, features). Keep it to one or two sentences on WhatsApp and include images when available. Do not include direct source links unless the user explicitly asks.",
         });
       } catch (e) {
         return toonEncode({

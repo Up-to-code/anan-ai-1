@@ -24,7 +24,7 @@ import {
   LoanCalculatorCard,
 } from "./chat-data-views";
 import { TableView, type TableData } from "./table-view";
-import { StreamingText } from "./streaming-text";
+import { MarkdownContent } from "./markdown-content";
 
 export type ComponentType =
   | "text"
@@ -108,16 +108,44 @@ export function ComponentMapper({ type, data }: ComponentData) {
       );
 
     case "streaming": {
-      const streamingData = data as { text?: string; speed?: number } | string;
+      const streamingData = data as
+        | {
+            text?: string;
+            speed?: number;
+            toolEvents?: Array<{ name: string; label: string; state: "running" | "done" }>;
+          }
+        | string;
       const text =
         typeof streamingData === "string"
           ? streamingData
           : (streamingData.text ?? "");
       const speed =
         typeof streamingData === "object" ? streamingData.speed : undefined;
+      const toolEvents =
+        typeof streamingData === "object" && Array.isArray(streamingData.toolEvents)
+          ? streamingData.toolEvents
+          : [];
       return (
         <div className="w-full">
-          <StreamingText text={text} speed={speed} />
+          <MarkdownContent content={text} />
+          {toolEvents.length > 0 ? (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {toolEvents.map((event, idx) => (
+                <span
+                  key={`${event.name}-${idx}`}
+                  className="rounded-full border border-border/50 bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground"
+                >
+                  {event.state === "done" ? "✓ " : "… "}
+                  {event.label}
+                </span>
+              ))}
+            </div>
+          ) : null}
+          {speed ? (
+            <p className="mt-2 text-xs text-muted-foreground">
+              سرعة العرض: {speed}
+            </p>
+          ) : null}
         </div>
       );
     }

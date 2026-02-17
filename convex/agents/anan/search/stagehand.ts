@@ -215,7 +215,7 @@ export async function extractPropertyDetails(
             .filter(
               (url) => url && typeof url === "string" && url.startsWith("http"),
             )
-            .slice(0, 5)
+            .slice(0, 10)
         : [],
     };
 

@@ -17,6 +17,11 @@ export interface Message {
   timestamp: string;
   type?: ComponentType | "text";
   data?: unknown;
+  toolEvents?: Array<{
+    name: string;
+    label: string;
+    state: "running" | "done";
+  }>;
 }
 
 export interface ChatRequest {
