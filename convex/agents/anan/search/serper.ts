@@ -12,9 +12,9 @@ import {
 } from "../../_lib/location";
 import {
   INTERNATIONAL_PROPERTY_PRIORITY_DOMAINS,
-  JAPAN_PROPERTY_PRIORITY_DOMAINS,
   PREFERRED_PROPERTY_SOURCE_DOMAINS,
   SAUDI_PROPERTY_PRIORITY_DOMAINS,
+  UAE_PROPERTY_PRIORITY_DOMAINS,
   TOP_SOURCE_LIMIT,
   TOP_CARDS_PER_SOURCE,
 } from "../../_lib/constants";
@@ -58,13 +58,21 @@ function buildPropertySearchQuery(query: string): string {
   const hasPropertyTerms = baseTerms.some((term) =>
     query.toLowerCase().includes(term),
   );
+  const hasUaeTerms =
+    /\b(uae|dubai|abu dhabi|sharjah|ajman)\b/i.test(query) ||
+    /(?:الإمارات|دبي|أبوظبي|الشارقة|عجمان)/i.test(query);
+  const hasSaudiTerms =
+    /\b(saudi|riyadh|jeddah|dammam|khobar)\b/i.test(query) ||
+    /(?:السعود|الرياض|جدة|الدمام|الخبر)/i.test(query);
 
   let searchQuery = query;
   if (!hasPropertyTerms) {
     searchQuery = `${query} property listing`;
   }
 
-  if (location && !query.toLowerCase().includes("saudi")) {
+  if (hasUaeTerms && !/uae|united arab emirates/i.test(searchQuery)) {
+    searchQuery = `${searchQuery} UAE`;
+  } else if (location && !hasSaudiTerms && !hasUaeTerms) {
     searchQuery = `${searchQuery} Saudi Arabia`;
   }
 
@@ -79,24 +87,24 @@ function chunkDomains(domains: string[], size: number): string[][] {
   return chunks;
 }
 
-function detectSearchScope(query: string): "saudi" | "japan" | "global" {
+function detectSearchScope(query: string): "saudi" | "uae" | "global" {
   const q = query.toLowerCase();
-  const hasJapan =
-    /\b(japan|tokyo|osaka|kyoto|yokohama|nagoya|sapporo|fukuoka)\b/i.test(q) ||
-    /(?:اليابان|طوكيو|أوساكا|كيوتو|يوكوهاما)/i.test(query);
+  const hasUae =
+    /\b(uae|united arab emirates|dubai|abu dhabi|sharjah|ajman)\b/i.test(q) ||
+    /(?:الإمارات|دبي|أبوظبي|الشارقة|عجمان)/i.test(query);
   const hasSaudi =
     /\b(saudi|riyadh|jeddah|dammam|khobar|mecca|medina)\b/i.test(q) ||
     /(?:السعود|الرياض|جدة|الدمام|الخبر|مكة|المدينة)/i.test(query);
-  if (hasJapan && !hasSaudi) return "japan";
-  if (hasSaudi && !hasJapan) return "saudi";
+  if (hasUae && !hasSaudi) return "uae";
+  if (hasSaudi && !hasUae) return "saudi";
   return "global";
 }
 
 function buildDomainConstrainedQueries(query: string): string[] {
   const scope = detectSearchScope(query);
   const domains =
-    scope === "japan"
-      ? JAPAN_PROPERTY_PRIORITY_DOMAINS
+    scope === "uae"
+      ? UAE_PROPERTY_PRIORITY_DOMAINS
       : scope === "saudi"
         ? SAUDI_PROPERTY_PRIORITY_DOMAINS
         : INTERNATIONAL_PROPERTY_PRIORITY_DOMAINS;
@@ -112,7 +120,7 @@ export function buildTaskList(query: string): string[] {
   return [
     "Create focused search keywords",
     `Search Google for: ${query}`,
-    "Fan out search across popular Saudi + Japan property portals (20+ domains) and merge results",
+    "Fan out search across popular Saudi + UAE property portals (20+ domains) and merge results",
     `Open top ${TOP_SOURCE_LIMIT} source results`,
     `Extract top ${TOP_CARDS_PER_SOURCE} property cards per source`,
     "Rank and deduplicate listing candidates across all sources",
@@ -159,7 +167,7 @@ export async function runSerperSearch(
   const optimizedQuery = buildPropertySearchQuery(query);
   const scope = detectSearchScope(optimizedQuery);
   const locale =
-    scope === "japan" ? { gl: "jp", hl: "ja" } : { gl: "sa", hl: "ar" };
+    scope === "uae" ? { gl: "ae", hl: "ar" } : { gl: "sa", hl: "ar" };
   console.log("[anan.search] serper:start", { query, optimizedQuery });
 
   try {

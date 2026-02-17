@@ -157,26 +157,26 @@ export const SAUDI_PROPERTY_PRIORITY_DOMAINS: string[] = [
   "ejar.sa",
 ];
 
-/** High-priority Japan property portals for targeted web search expansion. */
-export const JAPAN_PROPERTY_PRIORITY_DOMAINS: string[] = [
-  "suumo.jp",
-  "homes.co.jp",
-  "athome.co.jp",
-  "chintai.net",
-  "realestate.yahoo.co.jp",
-  "fudosan.or.jp",
-  "apamanshop.com",
-  "able.co.jp",
-  "mini-mini.jp",
-  "house.goo.ne.jp",
-  "kenbiya.com",
-  "wagaya-japan.com",
+/** High-priority UAE property portals for targeted web search expansion. */
+export const UAE_PROPERTY_PRIORITY_DOMAINS: string[] = [
+  "bayut.com",
+  "propertyfinder.ae",
+  "dubizzle.com",
+  "betterhomes.ae",
+  "bhomes.com",
+  "propsearch.ae",
+  "justproperty.com",
+  "zoomproperty.com",
+  "luxuryhomes.ae",
+  "famproperties.com",
+  "metropolitan.realestate",
+  "hausandhaus.com",
 ];
 
-/** Total popular Saudi + Japan domains for deep web discovery (>=20). */
+/** Total popular Saudi + UAE domains for deep web discovery (>=20). */
 export const INTERNATIONAL_PROPERTY_PRIORITY_DOMAINS: string[] = [
   ...SAUDI_PROPERTY_PRIORITY_DOMAINS,
-  ...JAPAN_PROPERTY_PRIORITY_DOMAINS,
+  ...UAE_PROPERTY_PRIORITY_DOMAINS,
 ];
 
 export const TOP_SOURCE_LIMIT = 3;
