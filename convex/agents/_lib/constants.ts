@@ -99,6 +99,8 @@ export const SAUDI_CITIES = [
 
 /** Search cache TTL: 15 minutes. Kept for backward compat. */
 export const SEARCH_CACHE_TTL_MS = 15 * 60 * 1000;
+/** Global cross-user search cache TTL (freshness-biased). */
+export const GLOBAL_SEARCH_CACHE_TTL_MS = 2 * 60 * 60 * 1000; // 2h
 
 /** Three-tier property cache TTLs */
 export const SEARCH_CACHE_TTL_HOT_MS = 15 * 60 * 1000; // 15 min

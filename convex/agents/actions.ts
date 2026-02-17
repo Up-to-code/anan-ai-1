@@ -50,6 +50,9 @@ const realEstateAgent = createRealEstateAgent({
     getLastSearchContext: api.services.properties.getLastSearchContext,
     getLastSearchFindings: api.services.properties.getLastSearchFindings,
     getCachedSearchResults: api.services.properties.getCachedSearchResults,
+    getGlobalSearchCache: api.services.properties.getGlobalSearchCache,
+    upsertGlobalSearchCache: api.services.properties.upsertGlobalSearchCache,
+    trackGlobalSearchCacheHit: api.services.properties.trackGlobalSearchCacheHit,
   },
   banks: {
     getById: api.services.banks.getById,

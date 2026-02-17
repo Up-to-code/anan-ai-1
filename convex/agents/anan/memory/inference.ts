@@ -36,9 +36,11 @@ export function inferMemoryFactsFromMessage(
   };
 
   const nameMatch =
+    message.match(/\b(?:remember\s+)?my name is\s+([a-z][a-z\s'-]{1,40})/i) ??
+    message.match(/\bcall me\s+([a-z][a-z\s'-]{1,30})/i) ??
     message.match(/\bmy name is\s+([a-z][a-z\s'-]{1,40})/i) ??
     message.match(/\bi am\s+([a-z][a-z\s'-]{1,30})/i) ??
-    message.match(/\b(?:اسمي|أنا اسمي)\s+([\u0600-\u06ff]{2,30})/i);
+    message.match(/\b(?:اسمي|أنا اسمي|نادني)\s+([\u0600-\u06ff]{2,30})/i);
   if (nameMatch?.[1]) {
     pushFact({
       key: "user_name",
@@ -51,9 +53,9 @@ export function inferMemoryFactsFromMessage(
 
   const budgetMatch =
     message.match(
-      /\b(?:budget|up to|under|max|less than)\s*[:\-]?\s*(\d[\d,]{2,9})\b/i,
+      /\b(?:budget|up to|under|max|less than)\s*[:-]?\s*(\d[\d,]{2,9})\b/i,
     ) ??
-    message.match(/\b(?:ميزانية|حدي|حتى|اقل من)\s*[:\-]?\s*(\d[\d,]{2,9})\b/i);
+    message.match(/\b(?:ميزانية|حدي|حتى|اقل من)\s*[:-]?\s*(\d[\d,]{2,9})\b/i);
   if (budgetMatch?.[1]) {
     const numeric = budgetMatch[1].replace(/[^\d]/g, "");
     if (numeric.length >= 4) {
@@ -82,7 +84,10 @@ export function inferMemoryFactsFromMessage(
 
   const locationMatch =
     message.match(/\b(?:in|at|near)\s+([a-z][a-z\s'-]{2,40})\b/i) ??
-    message.match(/\b(?:في|بحي|بالقرب من)\s+([\u0600-\u06ff]{2,30})\b/i);
+    message.match(/\b(?:في|بحي|بالقرب من)\s+([\u0600-\u06ff]{2,30})\b/i) ??
+    message.match(
+      /\b(?:my location is|i live in)\s+([a-z][a-z\s'-]{2,40})\b/i,
+    );
   if (locationMatch?.[1]) {
     pushFact({
       key: "location_preference",
@@ -102,6 +107,48 @@ export function inferMemoryFactsFromMessage(
       value: cleanValue(rememberNoteMatch[1], 120),
       memoryType: "fact",
       confidence: 0.85,
+      source: "explicit_user_message",
+    });
+  }
+
+  const timelineMatch =
+    message.match(/\b(?:within|in)\s+(\d+)\s*(day|days|week|weeks|month|months)\b/i) ??
+    message.match(/\b(?:خلال|بعد)\s+(\d+)\s*(يوم|أيام|اسبوع|أسابيع|شهر|شهور)\b/i);
+  if (timelineMatch?.[1] && timelineMatch?.[2]) {
+    pushFact({
+      key: "purchase_timeline",
+      value: `${timelineMatch[1]} ${cleanValue(timelineMatch[2], 12)}`,
+      memoryType: "constraint",
+      confidence: 0.82,
+      source: "explicit_user_message",
+    });
+  }
+
+  const financingMatch =
+    message.match(/\b(?:cash only|cash buyer|mortgage|loan|financing)\b/i) ??
+    message.match(/\b(?:كاش|نقدا|تمويل|قرض)\b/i);
+  if (financingMatch?.[0]) {
+    const raw = financingMatch[0].toLowerCase();
+    const value =
+      /cash|كاش|نقد/.test(raw) ? "cash" : /mortgage|loan|تمويل|قرض/.test(raw) ? "financing" : raw;
+    pushFact({
+      key: "financing_preference",
+      value,
+      memoryType: "preference",
+      confidence: 0.78,
+      source: "explicit_user_message",
+    });
+  }
+
+  const contactMatch =
+    message.match(/\b(?:contact me on|reach me on|whatsapp me|email me)\s+(.{3,60})$/i) ??
+    message.match(/\b(?:تواصل معي على|كلمني على|راسلني على)\s+(.{3,60})$/i);
+  if (contactMatch?.[1]) {
+    pushFact({
+      key: "contact_preference",
+      value: cleanValue(contactMatch[1], 60),
+      memoryType: "preference",
+      confidence: 0.8,
       source: "explicit_user_message",
     });
   }

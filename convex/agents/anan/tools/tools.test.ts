@@ -11,6 +11,9 @@ const appApi = {
     getLastSearchContext: {} as any,
     getLastSearchFindings: {} as any,
     getCachedSearchResults: {} as any,
+    getGlobalSearchCache: {} as any,
+    upsertGlobalSearchCache: {} as any,
+    trackGlobalSearchCacheHit: {} as any,
   },
   banks: {
     getById: {} as any,

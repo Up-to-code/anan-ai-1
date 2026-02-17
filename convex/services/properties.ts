@@ -13,6 +13,7 @@ import {
   SEARCH_CACHE_TTL_WARM_MS,
   SEARCH_CACHE_TTL_COLD_MS,
   SEARCH_CACHE_EVICT_AFTER_MS,
+  GLOBAL_SEARCH_CACHE_TTL_MS,
 } from "../agents/_lib/constants";
 import { Infer, v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
@@ -440,6 +441,205 @@ const propertyFindingValidator = v.object({
 
 type PropertyFindingCached = Infer<typeof propertyFindingValidator>;
 
+const searchScopeValidator = v.union(
+  v.literal("saudi"),
+  v.literal("uae"),
+  v.literal("global"),
+);
+
+function deriveSearchScope(query: string, explicitScope?: "saudi" | "uae" | "global"): "saudi" | "uae" | "global" {
+  if (explicitScope) return explicitScope;
+  const normalized = query.toLowerCase();
+  if (
+    /(?:السعودية|saudi|riyadh|الرياض|jeddah|جدة|dammam|الدمام)/i.test(
+      normalized,
+    )
+  ) {
+    return "saudi";
+  }
+  if (
+    /(?:uae|dubai|abu dhabi|الامارات|الإمارات|دبي|أبوظبي|ابوظبي)/i.test(
+      normalized,
+    )
+  ) {
+    return "uae";
+  }
+  return "global";
+}
+
+function buildGlobalSearchCacheKey(args: {
+  query: string;
+  offset?: number;
+  scope?: "saudi" | "uae" | "global";
+}): { cacheKey: string; normalizedQuery: string; scope: "saudi" | "uae" | "global"; offset: number } {
+  const normalizedQuery = normalizeQueryForCache(args.query);
+  const scope = deriveSearchScope(args.query, args.scope);
+  const offset = Math.max(0, args.offset ?? 0);
+  return {
+    cacheKey: `${scope}|${offset}|${normalizedQuery}`,
+    normalizedQuery,
+    scope,
+    offset,
+  };
+}
+
+export const getGlobalSearchCache = query({
+  args: {
+    query: v.string(),
+    offset: v.optional(v.number()),
+    scope: v.optional(searchScopeValidator),
+    minFindings: v.optional(v.number()),
+    nowMs: v.optional(v.number()),
+  },
+  returns: v.union(
+    v.null(),
+    v.object({
+      cacheKey: v.string(),
+      query: v.string(),
+      normalizedQuery: v.string(),
+      scope: searchScopeValidator,
+      offset: v.number(),
+      createdAt: v.number(),
+      expiresAt: v.number(),
+      status: v.union(
+        v.literal("completed"),
+        v.literal("partial"),
+        v.literal("failed"),
+      ),
+      propertyFindings: v.array(propertyFindingValidator),
+    }),
+  ),
+  handler: async (
+    ctx,
+    { query, offset, scope, minFindings = 1, nowMs = Date.now() },
+  ) => {
+    const key = buildGlobalSearchCacheKey({ query, offset, scope });
+    const row = await ctx.db
+      .query("globalSearchCache")
+      .withIndex("cacheKey", (q) => q.eq("cacheKey", key.cacheKey))
+      .first();
+    if (!row) return null;
+    if (row.expiresAt <= nowMs) return null;
+    if ((row.propertyFindings?.length ?? 0) < Math.max(1, minFindings)) {
+      return null;
+    }
+    return {
+      cacheKey: row.cacheKey,
+      query: row.query,
+      normalizedQuery: row.normalizedQuery,
+      scope: row.scope ?? key.scope,
+      offset: row.offset,
+      createdAt: row.createdAt,
+      expiresAt: row.expiresAt,
+      status: row.status,
+      propertyFindings: row.propertyFindings as PropertyFindingCached[],
+    };
+  },
+});
+
+export const upsertGlobalSearchCache = mutation({
+  args: {
+    query: v.string(),
+    offset: v.optional(v.number()),
+    scope: v.optional(searchScopeValidator),
+    propertyFindings: v.array(propertyFindingValidator),
+    status: v.optional(
+      v.union(
+        v.literal("completed"),
+        v.literal("partial"),
+        v.literal("failed"),
+      ),
+    ),
+    createdAt: v.optional(v.number()),
+    ttlMs: v.optional(v.number()),
+  },
+  returns: v.string(),
+  handler: async (
+    ctx,
+    {
+      query,
+      offset,
+      scope,
+      propertyFindings,
+      status = "completed",
+      createdAt,
+      ttlMs,
+    },
+  ) => {
+    const now = createdAt ?? Date.now();
+    const cacheMeta = buildGlobalSearchCacheKey({ query, offset, scope });
+    const expiresAt = now + Math.max(60 * 1000, ttlMs ?? GLOBAL_SEARCH_CACHE_TTL_MS);
+    const existing = await ctx.db
+      .query("globalSearchCache")
+      .withIndex("cacheKey", (q) => q.eq("cacheKey", cacheMeta.cacheKey))
+      .first();
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        query,
+        normalizedQuery: cacheMeta.normalizedQuery,
+        scope: cacheMeta.scope,
+        offset: cacheMeta.offset,
+        status,
+        createdAt: now,
+        expiresAt,
+        propertyFindings,
+      });
+      return cacheMeta.cacheKey;
+    }
+    await ctx.db.insert("globalSearchCache", {
+      cacheKey: cacheMeta.cacheKey,
+      query,
+      normalizedQuery: cacheMeta.normalizedQuery,
+      scope: cacheMeta.scope,
+      offset: cacheMeta.offset,
+      status,
+      createdAt: now,
+      expiresAt,
+      hitCount: 0,
+      propertyFindings,
+    });
+    return cacheMeta.cacheKey;
+  },
+});
+
+export const trackGlobalSearchCacheHit = mutation({
+  args: { cacheKey: v.string() },
+  returns: v.boolean(),
+  handler: async (ctx, { cacheKey }) => {
+    const row = await ctx.db
+      .query("globalSearchCache")
+      .withIndex("cacheKey", (q) => q.eq("cacheKey", cacheKey))
+      .first();
+    if (!row) return false;
+    await ctx.db.patch(row._id, {
+      hitCount: (row.hitCount ?? 0) + 1,
+      lastHitAt: Date.now(),
+    });
+    return true;
+  },
+});
+
+export const clearGlobalSearchCache = mutation({
+  args: {
+    query: v.optional(v.string()),
+    scope: v.optional(searchScopeValidator),
+  },
+  returns: v.object({ removed: v.number() }),
+  handler: async (ctx, { query, scope }) => {
+    await requireAdmin(ctx);
+    const rows = await ctx.db.query("globalSearchCache").collect();
+    let removed = 0;
+    const normalizedQuery = query ? normalizeQueryForCache(query) : undefined;
+    for (const row of rows) {
+      if (normalizedQuery && row.normalizedQuery !== normalizedQuery) continue;
+      if (scope && row.scope !== scope) continue;
+      await ctx.db.delete(row._id);
+      removed += 1;
+    }
+    return { removed };
+  },
+});
+
 /** Three-tier cache: L1 (15m) → L2 (3d) → L3 (15d). Find similar knowledgeResearch for reuse. */
 export const getCachedSearchResults = query({
   args: {
@@ -745,7 +945,7 @@ export const backfillSearchText = internalMutation({
 /** Delete knowledgeResearch records older than 15 days. Run via cron. */
 export const deleteExpiredKnowledgeResearch = internalMutation({
   args: { limit: v.optional(v.number()) },
-  returns: v.object({ deleted: v.number() }),
+  returns: v.object({ deleted: v.number(), globalDeleted: v.number() }),
   handler: async (ctx, { limit = 500 }) => {
     const cutoff = Date.now() - SEARCH_CACHE_EVICT_AFTER_MS;
 
@@ -766,7 +966,23 @@ export const deleteExpiredKnowledgeResearch = internalMutation({
         cutoff,
       });
     }
-    return { deleted };
+
+    const expiredGlobal = await ctx.db
+      .query("globalSearchCache")
+      .withIndex("expiresAt", (q) => q.lt("expiresAt", Date.now()))
+      .take(limit);
+    let globalDeleted = 0;
+    for (const rec of expiredGlobal) {
+      await ctx.db.delete(rec._id);
+      globalDeleted++;
+    }
+
+    if (globalDeleted > 0) {
+      console.log("[properties] deleteExpiredGlobalSearchCache", {
+        globalDeleted,
+      });
+    }
+    return { deleted, globalDeleted };
   },
 });
 

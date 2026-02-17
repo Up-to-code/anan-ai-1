@@ -12,6 +12,9 @@ export type AgentToolsApi = {
     getLastSearchContext: FunctionReference<"query", "public">;
     getLastSearchFindings: FunctionReference<"query", "public">;
     getCachedSearchResults: FunctionReference<"query", "public">;
+    getGlobalSearchCache: FunctionReference<"query", "public">;
+    upsertGlobalSearchCache: FunctionReference<"mutation", "public">;
+    trackGlobalSearchCacheHit: FunctionReference<"mutation", "public">;
   };
   banks: {
     getById: FunctionReference<"query", "public">;

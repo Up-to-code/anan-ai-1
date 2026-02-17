@@ -26,4 +26,22 @@ describe("inferMemoryFactsFromMessage", () => {
     const fact = facts.find((f) => f.key === "user_fact_favorite_color");
     expect(fact?.value).toBe("green");
   });
+
+  it("captures call-me name and financing preference", () => {
+    const facts = inferMemoryFactsFromMessage(
+      "Call me Mansour. I am a cash buyer for now.",
+    );
+    const asMap = new Map(facts.map((f) => [f.key, f.value]));
+    expect(asMap.get("user_name")).toBe("Mansour");
+    expect(asMap.get("financing_preference")).toBe("cash");
+  });
+
+  it("captures timeline and contact preference", () => {
+    const facts = inferMemoryFactsFromMessage(
+      "I want to buy within 3 months, contact me on WhatsApp only.",
+    );
+    const asMap = new Map(facts.map((f) => [f.key, f.value]));
+    expect(asMap.get("purchase_timeline")).toContain("3 month");
+    expect(asMap.get("contact_preference")).toContain("WhatsApp");
+  });
 });

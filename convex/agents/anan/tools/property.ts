@@ -229,6 +229,25 @@ function isRefreshIntent(query: string): boolean {
   );
 }
 
+function detectSearchScopeFromQuery(query: string): "saudi" | "uae" | "global" {
+  const normalized = query.toLowerCase();
+  if (
+    /(?:saudi|السعودية|riyadh|الرياض|jeddah|جدة|dammam|الدمام|khobar|الخبر)/i.test(
+      normalized,
+    )
+  ) {
+    return "saudi";
+  }
+  if (
+    /(?:uae|dubai|abu dhabi|sharjah|ajman|الامارات|الإمارات|دبي|ابوظبي|أبوظبي|الشارقة|عجمان)/i.test(
+      normalized,
+    )
+  ) {
+    return "uae";
+  }
+  return "global";
+}
+
 type SearchLogArgs = {
   query: string;
   userId?: string;
@@ -975,6 +994,76 @@ export function createPropertyTools(appApi: AgentToolsApi) {
         !userId ||
         userId === "anonymous" ||
         shouldExcludePreviousResults(query, refreshToken);
+      const searchScope = detectSearchScopeFromQuery(query);
+      const globalCacheBypass = shouldExcludePreviousResults(query, refreshToken);
+      if (!globalCacheBypass) {
+        const globalCached = await ctx.runQuery(
+          appApi.properties.getGlobalSearchCache,
+          {
+            query,
+            offset: refreshOffset,
+            scope: searchScope,
+            minFindings: Math.min(limit, 3),
+          },
+        );
+        if (
+          globalCached?.propertyFindings &&
+          globalCached.propertyFindings.length >= Math.min(limit, 3)
+        ) {
+          const cachedFindings = filterCachedFindingsByExcludedUrls(
+            globalCached.propertyFindings as CachedFinding[],
+            excludedUrlKeys,
+          );
+          if (cachedFindings.length > 0) {
+            const enrichedResults = normalizeCachedFindingsToUserResults(
+              cachedFindings,
+              limit,
+              query,
+              includeImages,
+            );
+            await ctx.runMutation(appApi.properties.trackGlobalSearchCacheHit, {
+              cacheKey: globalCached.cacheKey,
+            });
+            if (userId && userId !== "anonymous") {
+              await storeSearchSummaryInMemory(ctx, {
+                userId,
+                threadId,
+                query,
+                locationHint: extractQueryLocation(query),
+                budgetHint: extractQueryPriceHint(query),
+                findingsCount: enrichedResults.length,
+              });
+            }
+            await logSearchLifecycle(ctx, appApi, {
+              query,
+              userId,
+              channel,
+              stage: "completed",
+              status: "success",
+              source: "search_memory",
+              resultCount: enrichedResults.length,
+            });
+            return toonEncode({
+              searchStarted: true,
+              searchStartedMessage,
+              localizedSearchStartedMessage: {
+                en: searchStartedMessageEn,
+                ar: searchStartedMessageAr,
+              },
+              source: "search_memory",
+              cacheLayer: "global",
+              refreshOffset,
+              results: enrichedResults,
+              presentationGuidance: {
+                avoidProviderNames: true,
+                includeLinksOnlyOnUserRequest: true,
+                imageFirstFormatting: true,
+              },
+            });
+          }
+        }
+      }
+
       if (!skipCache) {
         const cached = await ctx.runQuery(
           appApi.properties.getCachedSearchResults,
@@ -1098,6 +1187,16 @@ export function createPropertyTools(appApi: AgentToolsApi) {
       }
 
       if (searchResult.success) {
+        if (searchResult.knowledgePayload.propertyFindings.length > 0) {
+          await ctx.runMutation(appApi.properties.upsertGlobalSearchCache, {
+            query,
+            offset: refreshOffset,
+            scope: searchScope,
+            propertyFindings: searchResult.knowledgePayload.propertyFindings,
+            status: searchResult.knowledgePayload.status,
+            createdAt: searchResult.knowledgePayload.createdAt,
+          });
+        }
         const freshUserResults = filterUserResultsByExcludedUrls(
           searchResult.userResults,
           excludedUrlKeys,
