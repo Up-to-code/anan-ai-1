@@ -91,7 +91,12 @@ export function useChatSession(params: { threadId?: string | null }) {
 
   const uiMessagesResult = useUIMessages(
     api.features.agent.actions.getThreadMessages,
-    activeThreadId ? { threadId: activeThreadId } : "skip",
+    activeThreadId
+      ? {
+          threadId: activeThreadId,
+          userId: isAuthenticated ? undefined : userId,
+        }
+      : "skip",
     { initialNumItems: 50, stream: true },
   );
 
@@ -207,7 +212,11 @@ export function useChatSession(params: { threadId?: string | null }) {
           router.replace(`/chat/${created.id}`);
         }
 
-        await sendMessage({ threadId: targetThreadId, body: trimmed });
+        await sendMessage({
+          threadId: targetThreadId,
+          body: trimmed,
+          userId: isAuthenticated ? undefined : userId,
+        });
         if (!isAuthenticated) incrementCount();
         refresh();
       } catch (error) {

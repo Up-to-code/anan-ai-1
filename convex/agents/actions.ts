@@ -27,6 +27,7 @@ import { createRealEstateAgent } from "../features/agent/factory";
 import { formatForChannel, type OfferBlock } from "../channels/formatters";
 import { authComponent } from "../auth";
 import { optionalAuth, requireAdmin } from "../lib/auth";
+import { enforceChatSendRateLimit } from "../lib/rateLimiter";
 import {
   detectPreferredLanguage,
   isLikelyLanguageMismatch,
@@ -351,11 +352,12 @@ export const sendMessage = mutation({
   args: {
     threadId: v.string(),
     body: v.string(),
+    userId: v.optional(v.string()),
     channel: v.optional(
       v.union(v.literal("whatsapp"), v.literal("app"), v.literal("web")),
     ),
   },
-  handler: async (ctx, { threadId, body, channel }) => {
+  handler: async (ctx, { threadId, body, userId: clientUserId, channel }) => {
     // #region agent log
     fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/agents/actions.ts:sendMessage',message:'sendMessage entry',data:{func:'sendMessage',threadId,channel,bodyLength:body.length},hypothesisId:'F2',timestamp:Date.now()})}).catch(()=>{});
     // #endregion
@@ -364,11 +366,33 @@ export const sendMessage = mutation({
       channel,
       bodyLength: body.length,
     });
+    let authUserId: string | undefined;
     try {
-      await authComponent.getAuthUser(ctx);
+      const authUser = await authComponent.getAuthUser(ctx);
+      authUserId =
+        authUser?.userId ?? (authUser?._id ? String(authUser._id) : undefined);
     } catch {
-      // Allow anonymous
+      authUserId = undefined;
     }
+    const callerUserId =
+      authUserId ??
+      (clientUserId?.startsWith("anon-") ? clientUserId : undefined);
+    if (!callerUserId) {
+      throw new Error("Authentication required");
+    }
+    const thread = await ctx.runQuery(components.agent.threads.getThread, {
+      threadId,
+    });
+    if (!thread) {
+      throw new Error("Thread not found");
+    }
+    if (thread.userId !== callerUserId) {
+      throw new Error("Access denied: thread ownership mismatch");
+    }
+    await enforceChatSendRateLimit(ctx, {
+      userId: callerUserId,
+      threadId,
+    });
     const { messageId } = await saveMessage(ctx, components.agent, {
       threadId,
       prompt: body,
@@ -383,9 +407,6 @@ export const sendMessage = mutation({
         channel,
       },
     );
-    const thread = await ctx.runQuery(components.agent.threads.getThread, {
-      threadId,
-    });
     await persistInferredMemoryFacts(ctx, {
       userId: thread?.userId ?? undefined,
       threadId,
@@ -670,6 +691,7 @@ export const generateReplyAndReturnText = internalAction({
 export const getThreadMessages = query({
   args: {
     threadId: v.string(),
+    userId: v.optional(v.string()),
     paginationOpts: paginationOptsValidator,
     streamArgs: v.optional(vStreamArgs),
     allowAdmin: v.optional(v.boolean()),
@@ -688,16 +710,22 @@ export const getThreadMessages = query({
       const authUser = await authComponent.getAuthUser(ctx);
       currentUserId =
         authUser?.userId ?? (authUser?._id ? String(authUser._id) : null);
-    } catch {}
+    } catch {
+      currentUserId = null;
+    }
 
     if (args.allowAdmin) {
       await requireAdmin(ctx);
-    } else if (
-      thread.userId &&
-      currentUserId &&
-      thread.userId !== currentUserId
-    ) {
-      throw new Error("Access denied: you can only view your own threads");
+    } else {
+      const callerUserId =
+        currentUserId ??
+        (args.userId?.startsWith("anon-") ? args.userId : null);
+      if (!callerUserId) {
+        throw new Error("Authentication required");
+      }
+      if (!thread.userId || thread.userId !== callerUserId) {
+        throw new Error("Access denied: you can only view your own threads");
+      }
     }
 
     const paginated = await listUIMessages(ctx, components.agent, {
@@ -718,6 +746,9 @@ export const testAgent = action({
     ctx,
     { message, userId = "test-user" },
   ): Promise<{ question: string; reply: string; threadId: string }> => {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("Not available in production");
+    }
     // #region agent log
     fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/agents/actions.ts:testAgent',message:'testAgent entry',data:{func:'testAgent',messageLen:message.length,userId},hypothesisId:'F13',timestamp:Date.now()})}).catch(()=>{});
     // #endregion
@@ -812,17 +843,12 @@ export const deleteThread = mutation({
       throw new Error("Authentication required");
     }
 
-    const threads = await ctx.runQuery(
-      components.agent.threads.listThreadsByUserId,
-      {
-        userId: resolvedUserId,
-        paginationOpts: { numItems: 100, cursor: null },
-      },
-    );
-    const ownsThread = threads.page.some(
-      (t: { _id: string }) => t._id === threadId,
-    );
-    if (!ownsThread) throw new Error("Thread not found or access denied");
+    const thread = await ctx.runQuery(components.agent.threads.getThread, {
+      threadId,
+    });
+    if (!thread || thread.userId !== resolvedUserId) {
+      throw new Error("Thread not found or access denied");
+    }
 
     await ctx.runMutation(components.agent.threads.deleteAllForThreadIdAsync, {
       threadId,

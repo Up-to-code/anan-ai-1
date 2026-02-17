@@ -10,7 +10,13 @@ import { v } from "convex/values";
 
 export const workflow = new WorkflowManager(components.workflow, {
   workpoolOptions: {
+    defaultRetryBehavior: {
+      maxAttempts: 4,
+      initialBackoffMs: 250,
+      base: 2,
+    },
     retryActionsByDefault: false,
+    maxParallelism: 20,
   },
 });
 

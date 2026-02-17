@@ -69,7 +69,11 @@ export function ChatHomeScreen() {
           userId: session?.user ? undefined : anonUserId,
           title: trimmed.slice(0, 50) || "محادثة جديدة",
         });
-        await sendMessage({ threadId, body: trimmed });
+        await sendMessage({
+          threadId,
+          body: trimmed,
+          userId: session?.user ? undefined : anonUserId,
+        });
         navigation.replace("ChatThread", { threadId });
       } catch (e) {
         console.error(e);

@@ -26,6 +26,7 @@ import type { RootStackParamList } from "../navigation/RootNavigator";
 import { api } from "../convex";
 import { useThemedTheme, type ThemeTokens } from "../theme";
 import { useSession } from "../lib/auth-client";
+import { getOrCreateAnonUserId } from "../lib/anonymous-user";
 import { uiMessageToMessage } from "../lib/ui-message-mapper";
 import type { ChatMessage } from "../lib/chat-types";
 import { Chip } from "../components/Chip";
@@ -102,6 +103,8 @@ export function ChatThreadScreen() {
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const threadId = route.params?.threadId ?? null;
   const { data: session } = useSession();
+  const anonymousUserId = useMemo(() => getOrCreateAnonUserId(), []);
+  const callerUserId = session?.user?.id ?? anonymousUserId;
   const userName = session?.user?.name || session?.user?.phoneNumber || "هناك";
 
   const [input, setInput] = useState("");
@@ -120,7 +123,12 @@ export function ChatThreadScreen() {
 
   const messagesResult = useUIMessages(
     api.agents.actions.getThreadMessages,
-    threadId ? { threadId } : "skip",
+    threadId
+      ? {
+          threadId,
+          userId: session?.user ? undefined : callerUserId,
+        }
+      : "skip",
     { initialNumItems: 50, stream: true },
   );
 
@@ -208,7 +216,11 @@ export function ChatThreadScreen() {
     setInput("");
     setSending(true);
     try {
-      await sendMessage({ threadId, body: text });
+      await sendMessage({
+        threadId,
+        body: text,
+        userId: session?.user ? undefined : callerUserId,
+      });
     } catch (e) {
       console.error(e);
       const msg =
@@ -220,7 +232,7 @@ export function ChatThreadScreen() {
     } finally {
       setSending(false);
     }
-  }, [input, threadId, sending, sendMessage]);
+  }, [input, threadId, sending, sendMessage, session?.user, callerUserId]);
 
   const handleSuggestionPress = useCallback(
     async (text: string) => {
@@ -228,7 +240,11 @@ export function ChatThreadScreen() {
       setSendError(null);
       setSending(true);
       try {
-        await sendMessage({ threadId, body: text });
+        await sendMessage({
+          threadId,
+          body: text,
+          userId: session?.user ? undefined : callerUserId,
+        });
       } catch (e) {
         console.error(e);
         const msg =
@@ -241,7 +257,7 @@ export function ChatThreadScreen() {
         setSending(false);
       }
     },
-    [threadId, sending, sendMessage],
+    [threadId, sending, sendMessage, session?.user, callerUserId],
   );
 
   const handlePropertyPress = useCallback(
