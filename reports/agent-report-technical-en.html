@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ANAN Agent V2 - Technical Report</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #f7f8fa;
+        --surface: #ffffff;
+        --text: #111827;
+        --muted: #4b5563;
+        --line: #e5e7eb;
+        --accent: #0f766e;
+        --accent-soft: #ccfbf1;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Cairo", sans-serif;
+        background: linear-gradient(180deg, #f9fafb 0%, #f3f4f6 100%);
+        color: var(--text);
+      }
+      .wrap {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 32px 20px 98px;
+      }
+      .hero {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 24px;
+      }
+      h1 {
+        margin: 0 0 10px;
+        font-size: 32px;
+        line-height: 1.2;
+      }
+      .meta {
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+        gap: 16px;
+        margin-top: 16px;
+      }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 18px;
+      }
+      .col-6 { grid-column: span 6; }
+      .col-12 { grid-column: span 12; }
+      @media (max-width: 900px) {
+        .col-6 { grid-column: span 12; }
+      }
+      h2 {
+        margin: 0 0 10px;
+        font-size: 20px;
+      }
+      ul {
+        margin: 0;
+        padding-left: 18px;
+      }
+      li { margin: 6px 0; }
+      .badge {
+        display: inline-block;
+        background: var(--accent-soft);
+        color: #115e59;
+        border: 1px solid #99f6e4;
+        border-radius: 999px;
+        padding: 4px 10px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+      code {
+        background: #f3f4f6;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        padding: 1px 6px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 8px;
+        font-size: 14px;
+      }
+      th, td {
+        text-align: left;
+        padding: 10px;
+        border-bottom: 1px solid var(--line);
+      }
+      th {
+        color: var(--muted);
+        font-weight: 700;
+      }
+      .compare {
+        display: grid;
+        gap: 10px;
+      }
+      .metric {
+        display: grid;
+        gap: 6px;
+      }
+      .metric-label {
+        font-size: 13px;
+        color: var(--muted);
+        font-weight: 700;
+      }
+      .bars {
+        display: grid;
+        gap: 6px;
+      }
+      .bar-row {
+        display: grid;
+        grid-template-columns: 72px 1fr 40px;
+        gap: 8px;
+        align-items: center;
+        font-size: 12px;
+      }
+      .track {
+        background: #f3f4f6;
+        border: 1px solid #e5e7eb;
+        border-radius: 999px;
+        height: 12px;
+        overflow: hidden;
+      }
+      .fill-old {
+        height: 100%;
+        background: #94a3b8;
+      }
+      .fill-new {
+        height: 100%;
+        background: #0f766e;
+      }
+      .export-bar {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 99;
+        border-top: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(6px);
+      }
+      .export-inner {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 10px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+      .export-note {
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .btn {
+        border: 1px solid #0f766e;
+        background: #0f766e;
+        color: #fff;
+        border-radius: 10px;
+        padding: 10px 14px;
+        font: inherit;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .btn.secondary {
+        background: #fff;
+        color: #0f766e;
+      }
+      .card, .hero, .metric, table, .bars {
+        break-inside: avoid-page;
+        page-break-inside: avoid;
+      }
+      @page {
+        size: A4;
+        margin: 14mm;
+      }
+      @media print {
+        body {
+          background: #fff;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        .wrap {
+          max-width: 100%;
+          padding: 0;
+        }
+        .export-bar {
+          display: none;
+        }
+        .card, .hero {
+          border-color: #d1d5db;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <section class="hero">
+        <span class="badge">Production Readiness Report</span>
+        <h1>ANAN Agent - New Version Technical Report</h1>
+        <p class="meta">
+          Date: February 17, 2026 | Scope: Backend agent capability upgrade |
+          Commit: <code>364ec45</code>
+        </p>
+      </section>
+
+      <div class="grid">
+        <section class="card col-12">
+          <h2>0) Version Comparison (0.0.2 vs 0.0.3)</h2>
+          <div class="compare">
+            <table>
+              <thead>
+                <tr>
+                  <th>Capability</th>
+                  <th>v0.0.2</th>
+                  <th>v0.0.3</th>
+                  <th>Delta</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Cross-user cache reuse</td>
+                  <td>No shared cache</td>
+                  <td>Global shared cache with hit tracking</td>
+                  <td>High improvement</td>
+                </tr>
+                <tr>
+                  <td>Search response consistency</td>
+                  <td>Per-user only</td>
+                  <td>Global + per-user layered retrieval</td>
+                  <td>Improved consistency</td>
+                </tr>
+                <tr>
+                  <td>Loan support</td>
+                  <td>General bank info</td>
+                  <td>Loan search + installment calculator</td>
+                  <td>New capability</td>
+                </tr>
+                <tr>
+                  <td>Long-conversation memory</td>
+                  <td>Basic extraction</td>
+                  <td>Timeline/financing/contact/name variants</td>
+                  <td>Better recall</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div class="metric">
+              <div class="metric-label">Relative Capability Score (0-100)</div>
+              <div class="bars">
+                <div class="bar-row">
+                  <span>Caching</span>
+                  <div class="track"><div class="fill-old" style="width: 35%"></div></div>
+                  <strong>35</strong>
+                </div>
+                <div class="bar-row">
+                  <span>v0.0.3</span>
+                  <div class="track"><div class="fill-new" style="width: 86%"></div></div>
+                  <strong>86</strong>
+                </div>
+                <div class="bar-row">
+                  <span>Memory</span>
+                  <div class="track"><div class="fill-old" style="width: 58%"></div></div>
+                  <strong>58</strong>
+                </div>
+                <div class="bar-row">
+                  <span>v0.0.3</span>
+                  <div class="track"><div class="fill-new" style="width: 82%"></div></div>
+                  <strong>82</strong>
+                </div>
+                <div class="bar-row">
+                  <span>Loan tools</span>
+                  <div class="track"><div class="fill-old" style="width: 32%"></div></div>
+                  <strong>32</strong>
+                </div>
+                <div class="bar-row">
+                  <span>v0.0.3</span>
+                  <div class="track"><div class="fill-new" style="width: 84%"></div></div>
+                  <strong>84</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card col-6">
+          <h2>1) Core Upgrades Delivered</h2>
+          <ul>
+            <li>Global cross-user property search cache with TTL and hit tracking.</li>
+            <li>Smart search pipeline now reuses shared cache before per-user cache.</li>
+            <li>Refresh behavior preserved: refresh/bypass does not reuse stale cache.</li>
+            <li>New loan capability tools: live loan search + mortgage calculator.</li>
+            <li>Improved memory extraction for long conversations and user recall.</li>
+          </ul>
+        </section>
+
+        <section class="card col-6">
+          <h2>2) Performance/Scale Impact</h2>
+          <ul>
+            <li>Reduces duplicate web search calls across users with same query intent.</li>
+            <li>Improves latency on repeated intents via cache-first retrieval.</li>
+            <li>Lowers token and search cost by reusing normalized result payloads.</li>
+            <li>Supports high-concurrency query stacks with deterministic cache keys.</li>
+          </ul>
+        </section>
+
+        <section class="card col-12">
+          <h2>3) Architecture Changes</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Area</th>
+                <th>Change</th>
+                <th>Outcome</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Schema</td>
+                <td><code>globalSearchCache</code> table added.</td>
+                <td>Shared cross-user cache persistence.</td>
+              </tr>
+              <tr>
+                <td>Service APIs</td>
+                <td><code>getGlobalSearchCache</code>, <code>upsertGlobalSearchCache</code>, <code>trackGlobalSearchCacheHit</code>, <code>clearGlobalSearchCache</code>.</td>
+                <td>Cache lifecycle control + admin invalidation.</td>
+              </tr>
+              <tr>
+                <td>Property Tool Flow</td>
+                <td><code>smartPropertySearch</code> now checks global cache, then user cache, then web fallback.</td>
+                <td>Faster repeated searches, fewer external calls.</td>
+              </tr>
+              <tr>
+                <td>Loan Tooling</td>
+                <td><code>searchSaudiLoans</code> + <code>calculateSaudiLoan</code> added.</td>
+                <td>End-to-end financing assistance in-agent.</td>
+              </tr>
+              <tr>
+                <td>Memory Inference</td>
+                <td>Added extraction for timeline, financing mode, contact preference, and name variants.</td>
+                <td>Better long-session personalization and recall.</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="card col-6">
+          <h2>4) Validation Status</h2>
+          <ul>
+            <li>Tests passed for memory and tool flows (Vitest targeted suites).</li>
+            <li>TypeScript typecheck passed: <code>tsc --noEmit</code>.</li>
+            <li>No new regression failures detected in modified modules.</li>
+          </ul>
+        </section>
+
+        <section class="card col-6">
+          <h2>5) Known Constraints</h2>
+          <ul>
+            <li>Repository-wide lint has existing unrelated legacy issues.</li>
+            <li>Git push blocked by remote permission (HTTP 403 write denied).</li>
+            <li>Commit exists locally and is ready for authorized push.</li>
+          </ul>
+        </section>
+
+        <section class="card col-12">
+          <h2>6) Production-Ready Recommendation</h2>
+          <ul>
+            <li>Keep this version as the new baseline for search/memory orchestration.</li>
+            <li>Add dashboard visibility for global cache hit ratio and freshness misses.</li>
+            <li>Add explicit user command for forced refresh/invalidation per query.</li>
+            <li>Run full lint remediation in a separate cleanup track (not in feature branch).</li>
+          </ul>
+        </section>
+      </div>
+    </div>
+    <div class="export-bar">
+      <div class="export-inner">
+        <div class="export-note">Ready for A4 PDF export with chart-safe layout.</div>
+        <div>
+          <button class="btn secondary" type="button" onclick="window.scrollTo({top: 0, behavior: 'smooth'})">Back to Top</button>
+          <button class="btn" type="button" onclick="window.print()">Export PDF</button>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

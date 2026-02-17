@@ -220,6 +220,48 @@ function ChatView({ messages, loading }: { messages: any[]; loading: boolean }) 
   );
 }
 
+function TraceView({ traces }: { traces: any[] }) {
+  if (!traces || traces.length === 0) {
+    return (
+      <div className="p-4 text-sm text-muted-foreground">
+        لا يوجد سجل أدوات لهذا الثريد.
+      </div>
+    );
+  }
+
+  return (
+    <ScrollArea className="h-[220px] border-t">
+      <div className="p-3 space-y-3">
+        {traces.map((trace: any) => (
+          <Card key={trace._id} className="border-dashed">
+            <CardContent className="p-3 space-y-2">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>{new Date(trace._creationTime).toLocaleString("ar-SA")}</span>
+                <span>Tools: {(trace.toolCalls?.length ?? 0)} / Results: {(trace.toolResults?.length ?? 0)}</span>
+              </div>
+              <p className="text-xs">
+                <span className="font-medium">المستخدم: </span>
+                {trace.userMessage || "-"}
+              </p>
+              <p className="text-xs">
+                <span className="font-medium">الرد: </span>
+                {trace.assistantMessage || "-"}
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {(trace.toolCalls ?? []).slice(0, 8).map((tool: any, i: number) => (
+                  <Badge key={`${trace._id}-tool-${i}`} variant="outline" className="text-[10px]">
+                    {tool?.name || "unknown"}
+                  </Badge>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </ScrollArea>
+  );
+}
+
 function SearchLogCard({ log }: { log: any }) {
   return (
     <Card className="hover:bg-muted/30 transition-colors">
@@ -350,6 +392,10 @@ export default function UserDetailPage() {
     api.features.admin.api.conversationsGetThreadMessages,
     activeThreadId ? { threadId: activeThreadId, paginationOpts: { cursor: null, numItems: 100 } } : "skip"
   ) as { page: Array<any> } | undefined;
+  const threadTraces = useQuery(
+    api.features.admin.api.conversationsGetThreadTraces,
+    activeThreadId ? { threadId: activeThreadId, limit: 20 } : "skip"
+  ) as Array<any> | undefined;
 
   React.useEffect(() => {
     const nextTab = searchParams.get("tab");
@@ -527,6 +573,7 @@ export default function UserDetailPage() {
                   <span className="font-medium text-sm">{threads.find(t => t._id === activeThreadId)?.title || "المحادثة"}</span>
                 </div>
                 <ChatView messages={messages} loading={!!activeThreadId && threadMessages === undefined} />
+                <TraceView traces={threadTraces || []} />
               </div>
             </div>
           </Card>

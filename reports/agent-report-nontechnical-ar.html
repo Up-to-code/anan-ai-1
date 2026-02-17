@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>تقرير النسخة الجديدة من وكيل عنان</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #f8fafc;
+        --surface: #ffffff;
+        --text: #0f172a;
+        --muted: #475569;
+        --line: #e2e8f0;
+        --accent: #0ea5a4;
+        --accent-soft: #ccfbf1;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Cairo", sans-serif;
+        background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+        color: var(--text);
+      }
+      .wrap {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 32px 20px 98px;
+      }
+      .hero {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 24px;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 34px;
+        line-height: 1.2;
+      }
+      .meta {
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+        gap: 16px;
+        margin-top: 16px;
+      }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 18px;
+      }
+      .col-6 { grid-column: span 6; }
+      .col-12 { grid-column: span 12; }
+      @media (max-width: 900px) {
+        .col-6 { grid-column: span 12; }
+      }
+      h2 {
+        margin: 0 0 10px;
+        font-size: 22px;
+      }
+      ul {
+        margin: 0;
+        padding-right: 18px;
+      }
+      li { margin: 7px 0; }
+      .badge {
+        display: inline-block;
+        background: var(--accent-soft);
+        color: #0f766e;
+        border: 1px solid #99f6e4;
+        border-radius: 999px;
+        padding: 5px 12px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .highlight {
+        background: #ecfeff;
+        border: 1px solid #a5f3fc;
+        border-radius: 10px;
+        padding: 10px 12px;
+        margin-top: 8px;
+        color: #0c4a6e;
+        font-weight: 700;
+      }
+      .compare {
+        display: grid;
+        gap: 10px;
+      }
+      .metric-label {
+        font-size: 13px;
+        color: var(--muted);
+        font-weight: 700;
+      }
+      .bars {
+        display: grid;
+        gap: 6px;
+      }
+      .bar-row {
+        display: grid;
+        grid-template-columns: 90px 1fr 40px;
+        gap: 8px;
+        align-items: center;
+        font-size: 12px;
+      }
+      .track {
+        background: #f1f5f9;
+        border: 1px solid #e2e8f0;
+        border-radius: 999px;
+        height: 12px;
+        overflow: hidden;
+      }
+      .fill-old {
+        height: 100%;
+        background: #94a3b8;
+      }
+      .fill-new {
+        height: 100%;
+        background: #0f766e;
+      }
+      .export-bar {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 99;
+        border-top: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(6px);
+      }
+      .export-inner {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 10px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+      .export-note {
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .btn {
+        border: 1px solid #0f766e;
+        background: #0f766e;
+        color: #fff;
+        border-radius: 10px;
+        padding: 10px 14px;
+        font: inherit;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .btn.secondary {
+        background: #fff;
+        color: #0f766e;
+      }
+      .card, .hero, .compare, table, .bars {
+        break-inside: avoid-page;
+        page-break-inside: avoid;
+      }
+      @page {
+        size: A4;
+        margin: 14mm;
+      }
+      @media print {
+        body {
+          background: #fff;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        .wrap {
+          max-width: 100%;
+          padding: 0;
+        }
+        .export-bar {
+          display: none;
+        }
+        .card, .hero {
+          border-color: #cbd5e1;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <section class="hero">
+        <span class="badge">تقرير مبسط</span>
+        <h1>تقرير النسخة الجديدة من وكيل عنان</h1>
+        <p class="meta">التاريخ: 17 فبراير 2026</p>
+        <div class="highlight">النتيجة: الوكيل صار أسرع، أذكى في التذكر، وأفضل في دعم البحث والتمويل.</div>
+      </section>
+
+      <div class="grid">
+        <section class="card col-12">
+          <h2>مقارنة النسخ: 0.0.2 مقابل 0.0.3</h2>
+          <div class="compare">
+            <table>
+              <thead>
+                <tr>
+                  <th>العنصر</th>
+                  <th>الإصدار 0.0.2</th>
+                  <th>الإصدار 0.0.3</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>إعادة استخدام نتائج البحث</td>
+                  <td>محدود لكل مستخدم</td>
+                  <td>كاش مشترك بين جميع المستخدمين</td>
+                </tr>
+                <tr>
+                  <td>التذكّر في المحادثات الطويلة</td>
+                  <td>أساسي</td>
+                  <td>أعمق (اسم، تمويل، مدة، تواصل)</td>
+                </tr>
+                <tr>
+                  <td>دعم القروض</td>
+                  <td>عام</td>
+                  <td>بحث قروض + حاسبة أقساط</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div class="metric-label">مؤشر تحسن تقريبي (0 إلى 100)</div>
+            <div class="bars">
+              <div class="bar-row">
+                <span>الكاش 0.0.2</span>
+                <div class="track"><div class="fill-old" style="width: 35%"></div></div>
+                <strong>35</strong>
+              </div>
+              <div class="bar-row">
+                <span>الكاش 0.0.3</span>
+                <div class="track"><div class="fill-new" style="width: 86%"></div></div>
+                <strong>86</strong>
+              </div>
+              <div class="bar-row">
+                <span>الذاكرة 0.0.2</span>
+                <div class="track"><div class="fill-old" style="width: 58%"></div></div>
+                <strong>58</strong>
+              </div>
+              <div class="bar-row">
+                <span>الذاكرة 0.0.3</span>
+                <div class="track"><div class="fill-new" style="width: 82%"></div></div>
+                <strong>82</strong>
+              </div>
+              <div class="bar-row">
+                <span>القروض 0.0.2</span>
+                <div class="track"><div class="fill-old" style="width: 32%"></div></div>
+                <strong>32</strong>
+              </div>
+              <div class="bar-row">
+                <span>القروض 0.0.3</span>
+                <div class="track"><div class="fill-new" style="width: 84%"></div></div>
+                <strong>84</strong>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card col-6">
+          <h2>ما الذي تحسن؟</h2>
+          <ul>
+            <li>الوكيل يتذكر تفضيلات المستخدم بشكل أفضل في المحادثات الطويلة.</li>
+            <li>نتائج البحث صارت تعاد استخدامُها بين المستخدمين لتقليل التكرار.</li>
+            <li>عند طلب “نتائج جديدة” يتم تجاوز الكاش والبحث من جديد.</li>
+            <li>إضافة أدوات قروض: بحث عن عروض حديثة + حاسبة قسط.</li>
+          </ul>
+        </section>
+
+        <section class="card col-6">
+          <h2>الفائدة لك كمنتج</h2>
+          <ul>
+            <li>استجابة أسرع للمستخدم النهائي.</li>
+            <li>تكلفة أقل بسبب تقليل الاستعلامات المتكررة.</li>
+            <li>جودة أعلى في التوصيات بسبب تحسين الذاكرة.</li>
+            <li>رحلة تمويل أوضح من أول سؤال إلى التقدير المالي.</li>
+          </ul>
+        </section>
+
+        <section class="card col-12">
+          <h2>تجربة المستخدم بعد التحديث</h2>
+          <ul>
+            <li>إذا مستخدم سأل نفس السؤال الذي سأله مستخدم آخر، النظام يستفيد من نفس النتيجة المخزنة بسرعة.</li>
+            <li>إذا قال المستخدم "أعطني خيارات ثانية" أو "ابحث مرة ثانية"، الوكيل يفهم أنه يريد تحديث حقيقي.</li>
+            <li>إذا شارك المستخدم معلومات شخصية مثل طريقة التمويل أو المدة، الوكيل يتذكرها ويستخدمها في الردود القادمة.</li>
+            <li>الردود صارت أكثر تنظيمًا وقابلة للاستخدام في الويب وواتساب.</li>
+          </ul>
+        </section>
+
+        <section class="card col-6">
+          <h2>حالة الجودة</h2>
+          <ul>
+            <li>اختبارات الوظائف الأساسية نجحت.</li>
+            <li>فحص الأنواع البرمجية (Type Check) نجح.</li>
+            <li>لا توجد مشاكل جديدة مرتبطة بالتعديلات الحالية.</li>
+          </ul>
+        </section>
+
+        <section class="card col-6">
+          <h2>ملاحظات تشغيل</h2>
+          <ul>
+            <li>في مشاكل قديمة عامة في Lint بالمشروع (غير مرتبطة بهذا التحديث).</li>
+            <li>الكود جاهز، لكن الدفع للمستودع الخارجي مرفوض حاليًا بسبب صلاحيات Git.</li>
+          </ul>
+        </section>
+
+        <section class="card col-12">
+          <h2>الخلاصة</h2>
+          <ul>
+            <li>النسخة الجديدة مناسبة للإطلاق الإنتاجي من ناحية قدرات الوكيل الأساسية.</li>
+            <li>التحديث رفع الأداء، التذكر، وجودة البحث، ودعم سيناريوهات القروض.</li>
+            <li>الخطوة التالية: متابعة مؤشرات الأداء (سرعة، نسبة hit للكاش، وجودة النتائج) من لوحة قياس واضحة.</li>
+          </ul>
+        </section>
+      </div>
+    </div>
+    <div class="export-bar">
+      <div class="export-inner">
+        <div class="export-note">جاهز للتصدير PDF مع تحسين الصفحات والمقارنة.</div>
+        <div>
+          <button class="btn secondary" type="button" onclick="window.scrollTo({top: 0, behavior: 'smooth'})">الرجوع للأعلى</button>
+          <button class="btn" type="button" onclick="window.print()">تصدير PDF</button>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

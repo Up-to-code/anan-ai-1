@@ -37,6 +37,7 @@ import type * as agents_anan_instructions_realEstate from "../agents/anan/instru
 import type * as agents_anan_instructions_system from "../agents/anan/instructions/system.js";
 import type * as agents_anan_instructions_toolsSummary from "../agents/anan/instructions/toolsSummary.js";
 import type * as agents_anan_memory_index from "../agents/anan/memory/index.js";
+import type * as agents_anan_memory_inference from "../agents/anan/memory/inference.js";
 import type * as agents_anan_memory_propertyTools from "../agents/anan/memory/propertyTools.js";
 import type * as agents_anan_orchestrator_index from "../agents/anan/orchestrator/index.js";
 import type * as agents_anan_orchestrator_toolRegistry from "../agents/anan/orchestrator/toolRegistry.js";
@@ -56,6 +57,7 @@ import type * as agents_anan_search_types from "../agents/anan/search/types.js";
 import type * as agents_anan_search_wasalt from "../agents/anan/search/wasalt.js";
 import type * as agents_anan_testing_column_tests from "../agents/anan/testing/column_tests.js";
 import type * as agents_anan_testing_traceLogger from "../agents/anan/testing/traceLogger.js";
+import type * as agents_anan_tools_analysis from "../agents/anan/tools/analysis.js";
 import type * as agents_anan_tools_banks from "../agents/anan/tools/banks.js";
 import type * as agents_anan_tools_format from "../agents/anan/tools/format.js";
 import type * as agents_anan_tools_handoff from "../agents/anan/tools/handoff.js";
@@ -171,6 +173,7 @@ declare const fullApi: ApiFromModules<{
   "agents/anan/instructions/system": typeof agents_anan_instructions_system;
   "agents/anan/instructions/toolsSummary": typeof agents_anan_instructions_toolsSummary;
   "agents/anan/memory/index": typeof agents_anan_memory_index;
+  "agents/anan/memory/inference": typeof agents_anan_memory_inference;
   "agents/anan/memory/propertyTools": typeof agents_anan_memory_propertyTools;
   "agents/anan/orchestrator/index": typeof agents_anan_orchestrator_index;
   "agents/anan/orchestrator/toolRegistry": typeof agents_anan_orchestrator_toolRegistry;
@@ -190,6 +193,7 @@ declare const fullApi: ApiFromModules<{
   "agents/anan/search/wasalt": typeof agents_anan_search_wasalt;
   "agents/anan/testing/column_tests": typeof agents_anan_testing_column_tests;
   "agents/anan/testing/traceLogger": typeof agents_anan_testing_traceLogger;
+  "agents/anan/tools/analysis": typeof agents_anan_tools_analysis;
   "agents/anan/tools/banks": typeof agents_anan_tools_banks;
   "agents/anan/tools/format": typeof agents_anan_tools_format;
   "agents/anan/tools/handoff": typeof agents_anan_tools_handoff;

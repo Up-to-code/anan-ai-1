@@ -122,3 +122,19 @@ export const conversationsGetThreadMessages = query({
     });
   },
 });
+
+export const conversationsGetThreadTraces = query({
+  args: {
+    threadId: v.string(),
+    limit: v.optional(v.number()),
+  },
+  returns: v.any(),
+  handler: async (ctx, { threadId, limit = 20 }): Promise<unknown> => {
+    await requireAdmin(ctx);
+    return await ctx.db
+      .query("agentTraces")
+      .withIndex("threadId", (q) => q.eq("threadId", threadId))
+      .order("desc")
+      .take(Math.max(1, Math.min(limit, 100)));
+  },
+});
