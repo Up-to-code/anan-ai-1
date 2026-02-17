@@ -123,6 +123,7 @@ import type * as lib_language from "../lib/language.js";
 import type * as lib_phone from "../lib/phone.js";
 import type * as lib_prompts from "../lib/prompts.js";
 import type * as lib_providers from "../lib/providers.js";
+import type * as lib_rateLimiter from "../lib/rateLimiter.js";
 import type * as lib_toon from "../lib/toon.js";
 import type * as lib_whatsapp from "../lib/whatsapp.js";
 import type * as roles from "../roles.js";
@@ -259,6 +260,7 @@ declare const fullApi: ApiFromModules<{
   "lib/phone": typeof lib_phone;
   "lib/prompts": typeof lib_prompts;
   "lib/providers": typeof lib_providers;
+  "lib/rateLimiter": typeof lib_rateLimiter;
   "lib/toon": typeof lib_toon;
   "lib/whatsapp": typeof lib_whatsapp;
   roles: typeof roles;
