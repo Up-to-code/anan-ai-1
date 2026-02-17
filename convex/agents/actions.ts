@@ -39,6 +39,7 @@ import {
   COLUMN_TEST_CASES,
   judgeColumnTest,
 } from "./anan/testing/column_tests";
+import { inferMemoryFactsFromMessage } from "./anan/memory/inference";
 
 const realEstateAgent = createRealEstateAgent({
   properties: {
@@ -67,9 +68,104 @@ const realEstateAgent = createRealEstateAgent({
   },
   handoffs: { create: internal.services.content.createHandoffInternal },
   orders: { createDraftFromAgent: api.admin.orders.createDraftOrderFromAgent },
+  memory: {
+    store: internal.services.memory.storeInternal,
+    getRelevantContext: internal.services.memory.getRelevantContextInternal,
+    storeInteraction: internal.services.memory.storeInteractionInternal,
+    storeEntityRelation: internal.services.memory.storeEntityRelationInternal,
+  },
 });
 
 const THREAD_TTL_MS = 1000 * 60 * 60 * 24 * 30;
+
+type MemoryContextSnapshot = {
+  summary?: string;
+  preferences?: Array<{ key?: string; value?: string }>;
+  constraints?: Array<{ key?: string; value?: string }>;
+} | null;
+
+async function getRelevantMemoryContext(
+  ctx: { runQuery: Function },
+  userId: string | undefined,
+  query: string,
+): Promise<MemoryContextSnapshot> {
+  if (!userId) return null;
+  try {
+    return await ctx.runQuery(internal.services.memory.getRelevantMemoriesByQuery, {
+      userId,
+      query,
+    });
+  } catch (error) {
+    console.warn("[memory] getRelevantMemoriesByQuery failed:", error);
+    return null;
+  }
+}
+
+function buildMemoryInjection(memoryContext: MemoryContextSnapshot): string {
+  if (!memoryContext) return "";
+  const memorySummary = memoryContext.summary ?? "";
+  const memoryPreferences = (memoryContext.preferences ?? [])
+    .map((p) => `${p.key ?? ""}: ${p.value ?? ""}`.trim())
+    .filter((x) => x && x !== ":")
+    .join(", ");
+  const memoryConstraints = (memoryContext.constraints ?? [])
+    .map((c) => `${c.key ?? ""}: ${c.value ?? ""}`.trim())
+    .filter((x) => x && x !== ":")
+    .join(", ");
+  return `
+**REMEMBERED USER CONTEXT (DO NOT RE-ASK)**:
+${memorySummary}
+${memoryPreferences ? `Preferences: ${memoryPreferences}` : ""}
+${memoryConstraints ? `Constraints: ${memoryConstraints}` : ""}
+IMPORTANT: Use this context. Do NOT ask for information already in memory. If user says "show me properties" without specifying location/budget, check memory first.
+`;
+}
+
+async function buildSystemInstructions(ctx: { runQuery: Function }, params: {
+  channel: "whatsapp" | "app" | "web" | undefined;
+  userId: string | undefined;
+  query: string;
+}): Promise<string> {
+  const baseInstructions = buildAgentInstructions(params.channel);
+  const memoryContext = await getRelevantMemoryContext(
+    ctx,
+    params.userId,
+    params.query,
+  );
+  const memoryInjection = buildMemoryInjection(memoryContext);
+  const mergedInstructions = await ctx.runQuery(
+    api.services.content.getMergedInstructions,
+    {},
+  );
+  const combined = `${baseInstructions}${memoryInjection}`;
+  return mergedInstructions ? `${combined}\n\n${mergedInstructions}` : combined;
+}
+
+async function persistInferredMemoryFacts(
+  ctx: { runMutation: Function },
+  params: { userId: string | undefined; threadId?: string; message: string },
+): Promise<void> {
+  if (!params.userId) return;
+  const facts = inferMemoryFactsFromMessage(params.message);
+  for (const fact of facts) {
+    try {
+      await ctx.runMutation(internal.services.memory.storeInternal, {
+        userId: params.userId,
+        threadId: params.threadId,
+        memoryType: fact.memoryType,
+        key: fact.key,
+        value: fact.value,
+        confidence: fact.confidence,
+        source: fact.source,
+      });
+    } catch (error) {
+      console.warn("[memory] storeInternal failed:", {
+        key: fact.key,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+}
 
 async function logMessageSentActivity(
   ctx: {
@@ -287,6 +383,11 @@ export const sendMessage = mutation({
     const thread = await ctx.runQuery(components.agent.threads.getThread, {
       threadId,
     });
+    await persistInferredMemoryFacts(ctx, {
+      userId: thread?.userId ?? undefined,
+      threadId,
+      message: body,
+    });
     await ctx.runMutation(internal.agents.actions.touchThreadMetadata, {
       threadId,
       userId: thread?.userId ?? undefined,
@@ -330,16 +431,12 @@ export const generateResponse = internalAction({
         "actions.generateResponse",
         "load_instructions",
         { threadId, channel },
-        async () => {
-          const baseInstructions = buildAgentInstructions(channel);
-          const mergedInstructions = await ctx.runQuery(
-            api.services.content.getMergedInstructions,
-            {},
-          );
-          return mergedInstructions
-            ? `${baseInstructions}\n\n${mergedInstructions}`
-            : baseInstructions;
-        },
+        async () =>
+          buildSystemInstructions(ctx, {
+            channel,
+            userId,
+            query: "",
+          }),
       );
       await withDebugTiming(
         "actions.generateResponse",
@@ -433,43 +530,16 @@ export const generateReplyAndReturnText = internalAction({
         channel: channelArg,
         threadId,
       });
-
-      const memoryContext = userId
-        ? await ctx.runQuery(internal.services.memory.getRelevantMemoriesByQuery, {
-            userId,
-            query: message,
-          })
-        : null;
-
-      const memorySummary = memoryContext?.summary ?? "";
-      const memoryPreferences = (memoryContext?.preferences ?? [])
-        .map((p: { key: string; value: string }) => `${p.key}: ${p.value}`)
-        .join(", ");
-      const memoryConstraints = (memoryContext?.constraints ?? [])
-        .map((c: { key: string; value: string }) => `${c.key}: ${c.value}`)
-        .join(", ");
-
-      const memoryInjection = memoryContext
-        ? `
-**REMEMBERED USER CONTEXT (DO NOT RE-ASK)**:
-${memorySummary}
-${memoryPreferences ? `Preferences: ${memoryPreferences}` : ""}
-${memoryConstraints ? `Constraints: ${memoryConstraints}` : ""}
-IMPORTANT: Use this context. Do NOT ask for information already in memory. If user says "show me properties" without specifying location/budget, check memory first.
-`
-        : "";
-
-      const instructions: string = (() => {
-        const baseInstructions = buildAgentInstructions(channelArg ?? "app");
-        return baseInstructions + memoryInjection;
-      })();
-      const mergedInstructions: string | null = await ctx.runQuery(
-        api.services.content.getMergedInstructions,
-        {},
-      );
-      const finalInstructions = mergedInstructions
-        ? `${instructions}\n\n${mergedInstructions}`
-        : instructions;
+      await persistInferredMemoryFacts(ctx, {
+        userId,
+        threadId,
+        message,
+      });
+      const finalInstructions = await buildSystemInstructions(ctx, {
+        channel: channelArg,
+        userId,
+        query: message,
+      });
       const channel = channelArg ?? "app";
       const result = await withDebugTiming(
         "actions.generateReplyAndReturnText",
@@ -683,12 +753,14 @@ export const listThreads = query({
     userId: v.optional(v.string()),
     paginationOpts: paginationOptsValidator,
   },
-  handler: async (ctx, { userId: _clientUserId, paginationOpts }) => {
+  handler: async (ctx, { userId: clientUserId, paginationOpts }) => {
     // #region agent log
     fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/agents/actions.ts:listThreads',message:'listThreads entry',data:{func:'listThreads',hasPaginationOpts:Boolean(paginationOpts)},hypothesisId:'F10',timestamp:Date.now()})}).catch(()=>{});
     // #endregion
     const authUserId = await optionalAuth(ctx);
-    const userId = authUserId ?? undefined;
+    const userId =
+      authUserId ??
+      (clientUserId?.startsWith("anon-") ? clientUserId : undefined);
     return ctx.runQuery(components.agent.threads.listThreadsByUserId, {
       userId,
       paginationOpts,
@@ -702,9 +774,11 @@ export const searchThreads = query({
     query: v.string(),
     limit: v.optional(v.number()),
   },
-  handler: async (ctx, { userId: _clientUserId, query: searchQuery, limit = 50 }) => {
+  handler: async (ctx, { userId: clientUserId, query: searchQuery, limit = 50 }) => {
     const authUserId = await optionalAuth(ctx);
-    const userId = authUserId ?? undefined;
+    const userId =
+      authUserId ??
+      (clientUserId?.startsWith("anon-") ? clientUserId : undefined);
     return ctx.runQuery(components.agent.threads.searchThreadTitles, {
       userId,
       query: searchQuery,
@@ -714,21 +788,31 @@ export const searchThreads = query({
 });
 
 export const deleteThread = mutation({
-  args: { threadId: v.string() },
-  handler: async (ctx, { threadId }) => {
+  args: { threadId: v.string(), userId: v.optional(v.string()) },
+  handler: async (ctx, { threadId, userId: clientUserId }) => {
     // #region agent log
     fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/agents/actions.ts:deleteThread',message:'deleteThread entry',data:{func:'deleteThread',threadId},hypothesisId:'F14',timestamp:Date.now()})}).catch(()=>{});
     // #endregion
-    const authUser = await authComponent.getAuthUser(ctx);
-    const userId =
-      authUser.userId && authUser.userId !== null
-        ? authUser.userId
-        : String(authUser._id);
+    let resolvedUserId: string | undefined;
+    try {
+      const authUser = await authComponent.getAuthUser(ctx);
+      resolvedUserId =
+        authUser.userId && authUser.userId !== null
+          ? authUser.userId
+          : String(authUser._id);
+    } catch {
+      resolvedUserId = clientUserId?.startsWith("anon-")
+        ? clientUserId
+        : undefined;
+    }
+    if (!resolvedUserId) {
+      throw new Error("Authentication required");
+    }
 
     const threads = await ctx.runQuery(
       components.agent.threads.listThreadsByUserId,
       {
-        userId,
+        userId: resolvedUserId,
         paginationOpts: { numItems: 100, cursor: null },
       },
     );

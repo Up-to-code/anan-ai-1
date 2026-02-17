@@ -27,6 +27,49 @@ function buildRelatedQuery(query: string): string {
   return related.trim();
 }
 
+function detectQueryIntent(query: string): "legal" | "market" | "general" {
+  const q = query.toLowerCase();
+  if (
+    /\b(law|regulation|rules|compliance|zoning|license|legal|نظام|لائحة|لوائح|قانون|تشريع|ضوابط|اشتراطات|رخصة)\b/i.test(
+      q,
+    )
+  ) {
+    return "legal";
+  }
+  if (
+    /\b(market|trend|price|rates|index|forecast|العرض|الطلب|الأسعار|سوق|مؤشر|اتجاه)\b/i.test(
+      q,
+    )
+  ) {
+    return "market";
+  }
+  return "general";
+}
+
+function buildDeepQueries(query: string): string[] {
+  const intent = detectQueryIntent(query);
+  const base = query.trim();
+  if (!base) return [];
+
+  const candidates =
+    intent === "legal"
+      ? [
+          `${base} site:gov.sa`,
+          `${base} site:sama.gov.sa OR site:moj.gov.sa`,
+        ]
+      : intent === "market"
+        ? [
+            buildRelatedQuery(base),
+            `${base} report OR index OR statistics`,
+          ]
+        : [buildRelatedQuery(base)];
+
+  return Array.from(new Set([base, ...candidates]))
+    .map((q) => q.trim())
+    .filter(Boolean)
+    .slice(0, 3);
+}
+
 async function runSerper(
   apiKey: string,
   query: string,
@@ -66,7 +109,11 @@ export const runSerperWebSearch = internalAction({
     deep: v.optional(v.boolean()),
   },
   handler: async (_ctx, { query, num = 5, deep = false }): Promise<
-    | { ok: true; results: { title: string; url: string; snippet: string }[] }
+    | {
+        ok: true;
+        results: { title: string; url: string; snippet: string }[];
+        queriesUsed: string[];
+      }
     | { ok: false; error: string }
   > => {
     const apiKey = process.env.SERPER_API_KEY;
@@ -80,25 +127,21 @@ export const runSerperWebSearch = internalAction({
       const perQueryNum = deep ? 10 : Math.min(num, 10);
 
       let allResults: { title: string; url: string; snippet: string }[];
+      let queriesUsed: string[] = [query];
 
       if (deep) {
-        const relatedQuery = buildRelatedQuery(query);
-        const [mainRes, relatedRes] = await Promise.all([
-          runSerper(apiKey, query, perQueryNum, localeParams),
-          runSerper(apiKey, relatedQuery, perQueryNum, localeParams),
-        ]);
+        const deepQueries = buildDeepQueries(query);
+        queriesUsed = deepQueries;
+        const batches = await Promise.all(
+          deepQueries.map((q) => runSerper(apiKey, q, perQueryNum, localeParams)),
+        );
         const byUrl = new Map<string, { title: string; url: string; snippet: string }>();
-        for (let i = 0; i < mainRes.length; i++) {
-          const r = mainRes[i];
-          const norm = normalizeUrl(r.url);
-          if (r.url && !byUrl.has(norm)) {
-            byUrl.set(norm, r);
-          }
-        }
-        for (const r of relatedRes) {
-          const norm = normalizeUrl(r.url);
-          if (r.url && !byUrl.has(norm)) {
-            byUrl.set(norm, r);
+        for (const batch of batches) {
+          for (const r of batch) {
+            const norm = normalizeUrl(r.url);
+            if (r.url && !byUrl.has(norm)) {
+              byUrl.set(norm, r);
+            }
           }
         }
         allResults = Array.from(byUrl.values()).slice(0, perQueryNum * 2);
@@ -107,7 +150,7 @@ export const runSerperWebSearch = internalAction({
       }
 
       const results = allResults.slice(0, num);
-      return { ok: true, results };
+      return { ok: true, results, queriesUsed };
     } catch (e) {
       return {
         ok: false,

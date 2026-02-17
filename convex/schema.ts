@@ -410,8 +410,11 @@ export default defineSchema({
       v.object({
         sourceRank: v.number(),
         sourceUrl: v.string(),
+        sourceTitle: v.optional(v.string()),
         cardRank: v.number(),
         propertyUrl: v.optional(v.string()),
+        detailSourceUrl: v.optional(v.string()),
+        detailFetched: v.optional(v.boolean()),
         title: v.string(),
         description: v.optional(v.string()),
         priceHint: v.optional(v.string()),

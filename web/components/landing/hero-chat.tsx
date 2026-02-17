@@ -1,151 +1,110 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
-import { ArrowUp, Sparkles, Loader2 } from "lucide-react";
+import { motion } from "framer-motion";
+import { ArrowUpRight, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+const QUICK_START = [
+  "أبغى شقة 3 غرف بالرياض أقل من مليون",
+  "عقار استثماري بعائد جيد في جدة",
+  "قارن لي خيارات التمويل للبيت الأول",
+];
 
 export function HeroChat() {
   const router = useRouter();
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-
-  const placeholders = [
-    "ابحث عن شقة في الرياض...",
-    "احسب قرضك العقاري...",
-    "عقارات للإيجار بجدة...",
-    "أبغى فيلا بميزانية مليون...",
-  ];
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setPlaceholderIndex((prev) => (prev + 1) % placeholders.length);
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [placeholders.length]);
+    const interval = window.setInterval(() => {
+      setPlaceholderIndex((prev) => (prev + 1) % QUICK_START.length);
+    }, 3200);
+    return () => window.clearInterval(interval);
+  }, []);
 
-  const handleSubmit = async () => {
-    const trimmed = input.trim();
-    if (!trimmed || isSending) return;
-
+  const handleSend = () => {
+    const message = input.trim();
+    if (!message || isSending) return;
     setIsSending(true);
-    // Navigate to chat with the initial message
-    router.push(`/chat/new?q=${encodeURIComponent(trimmed)}`);
+    router.push(`/chat/new?q=${encodeURIComponent(message)}`);
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 30 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.6, duration: 0.7, ease: "easeOut" }}
-      className="w-full max-w-2xl mx-auto"
-    >
-      <div className="relative group">
-        {/* Glow effect behind input */}
-        <div className="absolute -inset-1 bg-gradient-to-l from-primary/30 via-primary/10 to-primary/30 rounded-2xl blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-500" />
+    <div id="ask" className="w-full">
+      <div className="rounded-2xl border border-border/40 bg-background/70 p-3">
+        <label htmlFor="landing-prompt" className="mb-2 block px-1 text-sm font-semibold text-foreground">
+          اكتب طلبك وابدأ المحادثة
+        </label>
 
-        <div className="relative flex flex-col rounded-2xl bg-card/60 backdrop-blur-xl border border-border/30 shadow-2xl shadow-primary/5 overflow-hidden transition-all duration-300 group-focus-within:border-primary/30 group-focus-within:shadow-primary/10">
-          {/* Agent badge */}
-          <div className="flex items-center gap-2 px-4 pt-3 pb-1">
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20">
-              <Sparkles className="h-3 w-3 text-primary" />
-              <span className="text-[11px] font-medium text-primary">عنان AI</span>
-            </div>
-            <div className="flex items-center gap-1 mr-auto">
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-[11px] text-muted-foreground">متصل الآن</span>
-            </div>
-          </div>
+        <div className="rounded-xl border border-border/40 bg-card/60 p-2 focus-within:border-primary/40">
+          <textarea
+            id="landing-prompt"
+            ref={inputRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+            placeholder={QUICK_START[placeholderIndex]}
+            name="landing_query"
+            autoComplete="off"
+            dir="rtl"
+            rows={3}
+            disabled={isSending}
+            aria-label="اكتب طلبك لبدء المحادثة"
+            className="max-h-40 min-h-[80px] w-full resize-none bg-transparent px-2 py-1 text-right text-sm leading-relaxed text-foreground placeholder:text-muted-foreground/45 focus:outline-none sm:text-base"
+          />
 
-          {/* Input area */}
-          <div className="px-4 pt-2 pb-2">
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSubmit();
-                }
-              }}
-              placeholder={placeholders[placeholderIndex]}
-              disabled={isSending}
-              className="w-full min-h-[52px] max-h-[120px] resize-none bg-transparent text-right text-base placeholder:text-muted-foreground/40 focus:outline-none leading-relaxed"
-              dir="rtl"
-              rows={1}
-            />
-          </div>
-
-          {/* Bottom bar */}
-          <div className="flex items-center justify-between px-4 py-2.5 border-t border-border/20">
-            <span className="text-[11px] text-muted-foreground/50">
-              اضغط Enter للإرسال
-            </span>
-
+          <div className="mt-2 flex items-center justify-between border-t border-border/30 px-1 pt-2">
+            <p className="text-xs text-muted-foreground">اضغط Enter أو زر البدء</p>
             <button
-              onClick={handleSubmit}
+              onClick={handleSend}
               disabled={!input.trim() || isSending}
+              aria-label={isSending ? "جاري بدء المحادثة" : "ابدأ الآن"}
               className={cn(
-                "rounded-xl h-9 w-9 flex items-center justify-center transition-all duration-200",
+                "inline-flex h-9 items-center gap-1 rounded-lg px-3 text-xs font-semibold transition-colors sm:text-sm",
                 input.trim() && !isSending
-                  ? "bg-gradient-to-l from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg shadow-primary/25 text-primary-foreground scale-100 hover:scale-105"
-                  : "bg-muted/50 text-muted-foreground/30 cursor-not-allowed"
+                  ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                  : "cursor-not-allowed bg-muted text-muted-foreground/40",
               )}
             >
-              <AnimatePresence mode="wait">
-                {isSending ? (
-                  <motion.div
-                    key="loading"
-                    initial={{ opacity: 0, rotate: -90 }}
-                    animate={{ opacity: 1, rotate: 0 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.15 }}
-                  >
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="arrow"
-                    initial={{ opacity: 0, y: 3 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -3 }}
-                    transition={{ duration: 0.15 }}
-                  >
-                    <ArrowUp className="h-4 w-4" />
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              {isSending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  ابدأ الآن
+                  <ArrowUpRight className="h-4 w-4" />
+                </>
+              )}
             </button>
           </div>
         </div>
       </div>
 
-      {/* Quick suggestions below chat */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 1.2, duration: 0.5 }}
-        className="flex flex-wrap justify-center gap-2 mt-4"
-      >
-        {["شقق في الرياض", "فلل بجدة", "أراضي للبيع", "حاسبة التمويل"].map(
-          (tag) => (
-            <button
-              key={tag}
-              onClick={() => {
-                setInput(tag);
-                inputRef.current?.focus();
-              }}
-              className="px-3 py-1.5 rounded-full text-xs font-medium bg-card/40 backdrop-blur-sm border border-border/30 text-muted-foreground hover:text-foreground hover:border-primary/30 hover:bg-card/60 transition-all duration-200"
-            >
-              {tag}
-            </button>
-          )
-        )}
-      </motion.div>
-    </motion.div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {QUICK_START.map((prompt, index) => (
+          <motion.button
+            key={prompt}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.05 }}
+            onClick={() => {
+              setInput(prompt);
+              inputRef.current?.focus();
+            }}
+            className="rounded-full border border-border/40 bg-card/50 px-3 py-1.5 text-xs text-foreground/85 hover:border-primary/35 hover:text-foreground"
+          >
+            {prompt}
+          </motion.button>
+        ))}
+      </div>
+    </div>
   );
 }

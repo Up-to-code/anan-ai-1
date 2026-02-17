@@ -16,7 +16,7 @@ export function createAnanAgent(appApi: AgentToolsApi) {
   const tools = createAgentTools(appApi);
 
   return new Agent(components.agent, {
-    name: "Anan",
+    name: "ANAN",
     languageModel: getChatModel(),
     textEmbeddingModel: getEmbeddingModel(),
     callSettings: { timeout: getLLMTimeoutMs() },

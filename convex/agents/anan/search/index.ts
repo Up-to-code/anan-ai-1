@@ -31,6 +31,11 @@ export type SearchAgentApi = {
   };
 };
 
+function normalizeUrlKey(url: string | undefined): string | null {
+  if (!url) return null;
+  return url.trim().replace(/\/+$/, "").toLowerCase() || null;
+}
+
 
 /**
  * Fetch full property details (including Property Information and imageUrls) from a detail page URL.
@@ -101,6 +106,7 @@ export async function runSearchAgent(
     refreshToken?: string;
     offset?: number;
     threadId?: string;
+    excludedPropertyUrls?: string[];
   }
 ): Promise<SearchAgentResult> {
   const startTime = Date.now();
@@ -112,7 +118,13 @@ export async function runSearchAgent(
     refreshToken,
     offset = 0,
     threadId,
+    excludedPropertyUrls,
   } = params;
+  const excludedUrlKeys = new Set<string>(
+    (excludedPropertyUrls ?? [])
+      .map((url) => normalizeUrlKey(url))
+      .filter((url): url is string => Boolean(url)),
+  );
 
   console.log("[anan.search] start", {
     query,
@@ -121,17 +133,21 @@ export async function runSearchAgent(
     limit,
     refreshToken,
     offset,
+    excludedPropertyUrls: excludedUrlKeys.size,
   });
 
   const baseTaskList = buildTaskList(query);
   const taskList =
-    offset > 0 ? [...baseTaskList, `Refresh mode enabled (offset=${offset})`] : baseTaskList;
+    offset > 0
+      ? [...baseTaskList, `Refresh mode enabled (offset=${offset})`]
+      : baseTaskList;
   const searchTerms = buildSearchTerms(query, refreshToken, offset);
   const deadlineMs = startTime + SEARCH_CIRCUIT_BREAKER_MS;
 
   let portalFindings: PropertyFinding[] = [];
   const portalSources: SerperResult[] = [];
   const portalState: StagehandState = { disabled: false };
+  let remainingPortalDetailEnrichment = 3;
 
   for (let idx = 0; idx < SAUDI_PORTAL_CONFIGS.length; idx++) {
     if (Date.now() > deadlineMs) break;
@@ -147,13 +163,29 @@ export async function runSearchAgent(
         idx + 1,
         config,
         portalState,
-        { deadlineMs }
+        {
+          deadlineMs,
+          detailEnrichCount: remainingPortalDetailEnrichment,
+          excludePropertyUrls: excludedUrlKeys,
+        }
+      );
+      const consumedDetailBudget = result.findings.filter(
+        (f) => f.detailFetched,
+      ).length;
+      remainingPortalDetailEnrichment = Math.max(
+        0,
+        remainingPortalDetailEnrichment - consumedDetailBudget,
       );
       if (result.findings.length > 0) {
-        const seen = new Set(portalFindings.map((f) => f.propertyUrl).filter(Boolean));
+        const seen = new Set(
+          portalFindings
+            .map((f) => normalizeUrlKey(f.propertyUrl))
+            .filter((url): url is string => Boolean(url)),
+        );
         for (const f of result.findings) {
-          if (f.propertyUrl && !seen.has(f.propertyUrl)) {
-            seen.add(f.propertyUrl);
+          const key = normalizeUrlKey(f.propertyUrl);
+          if (key && !seen.has(key)) {
+            seen.add(key);
             portalFindings.push(f);
           }
         }
@@ -257,13 +289,21 @@ export async function runSearchAgent(
 
     let findings = await buildFindings(ctx, sources, imagePool, {
       deadlineMs,
+      maxFindings: Math.max(limit * 2, 10),
+      detailEnrichCount: 3,
+      excludePropertyUrls: excludedUrlKeys,
     });
 
-    const seenUrls = new Set(portalFindings.map((f) => f.propertyUrl).filter(Boolean));
+    const seenUrls = new Set(
+      portalFindings
+        .map((f) => normalizeUrlKey(f.propertyUrl))
+        .filter((url): url is string => Boolean(url)),
+    );
     const allFindings = [...portalFindings];
     for (const f of findings) {
-      if (f.propertyUrl && !seenUrls.has(f.propertyUrl)) {
-        seenUrls.add(f.propertyUrl);
+      const key = normalizeUrlKey(f.propertyUrl);
+      if (key && !seenUrls.has(key)) {
+        seenUrls.add(key);
         allFindings.push(f);
       }
     }
@@ -284,12 +324,12 @@ export async function runSearchAgent(
           const secondImagePool = (secondResult.images ?? [])
             .map((i) => i.imageUrl)
             .filter((url): url is string => Boolean(url));
-          const moreFindings = await buildFindings(
-            ctx,
-            additionalSources,
-            secondImagePool,
-            { deadlineMs }
-          );
+          const moreFindings = await buildFindings(ctx, additionalSources, secondImagePool, {
+            deadlineMs,
+            maxFindings: Math.max(limit, 6),
+            detailEnrichCount: 3,
+            excludePropertyUrls: excludedUrlKeys,
+          });
           findings = [...findings, ...moreFindings];
           sources = [...sources, ...additionalSources];
           console.log("[anan.search] second_run", {

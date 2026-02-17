@@ -135,7 +135,10 @@ export function useConversations(
   const remove = useCallback(
     async (threadId: string): Promise<boolean> => {
       try {
-        await deleteThreadMutation({ threadId });
+        await deleteThreadMutation({
+          threadId,
+          userId: isAuthenticated ? undefined : (queryUserId ?? undefined),
+        });
         return true;
       } catch (err) {
         log.error("Error deleting thread:", err);
@@ -145,7 +148,7 @@ export function useConversations(
         return false;
       }
     },
-    [deleteThreadMutation],
+    [deleteThreadMutation, isAuthenticated, queryUserId],
   );
 
   const isLoading = hasSearch

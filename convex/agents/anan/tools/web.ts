@@ -70,6 +70,12 @@ export function createWebTools(_appApi: AgentToolsApi) {
         });
         return toonEncode({
           results: cached.results,
+          searchPlan: {
+            deep,
+            queriesUsed: Array.isArray((cached as { queriesUsed?: unknown }).queriesUsed)
+              ? (cached as { queriesUsed: string[] }).queriesUsed
+              : [query],
+          },
           presentationGuidance: {
             avoidProviderNames: true,
             includeLinksOnlyOnUserRequest: true,
@@ -131,6 +137,12 @@ export function createWebTools(_appApi: AgentToolsApi) {
         });
         return toonEncode({
           results: cached.results,
+          searchPlan: {
+            deep,
+            queriesUsed: Array.isArray((cached as { queriesUsed?: unknown }).queriesUsed)
+              ? (cached as { queriesUsed: string[] }).queriesUsed
+              : [shapedQuery],
+          },
           presentationGuidance: {
             avoidProviderNames: true,
             includeLinksOnlyOnUserRequest: true,

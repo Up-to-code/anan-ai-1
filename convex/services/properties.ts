@@ -390,8 +390,11 @@ export const logKnowledgeResearch = mutation({
       v.object({
         sourceRank: v.number(),
         sourceUrl: v.string(),
+        sourceTitle: v.optional(v.string()),
         cardRank: v.number(),
         propertyUrl: v.optional(v.string()),
+        detailSourceUrl: v.optional(v.string()),
+        detailFetched: v.optional(v.boolean()),
         title: v.string(),
         description: v.optional(v.string()),
         priceHint: v.optional(v.string()),
@@ -417,8 +420,11 @@ export const logKnowledgeResearch = mutation({
 const propertyFindingValidator = v.object({
   sourceRank: v.number(),
   sourceUrl: v.string(),
+  sourceTitle: v.optional(v.string()),
   cardRank: v.number(),
   propertyUrl: v.optional(v.string()),
+  detailSourceUrl: v.optional(v.string()),
+  detailFetched: v.optional(v.boolean()),
   title: v.string(),
   description: v.optional(v.string()),
   priceHint: v.optional(v.string()),
@@ -615,6 +621,10 @@ export const getLastSearchFindings = query({
           index: v.number(),
           title: v.string(),
           propertyUrl: v.optional(v.string()),
+          sourceUrl: v.optional(v.string()),
+          sourceTitle: v.optional(v.string()),
+          detailSourceUrl: v.optional(v.string()),
+          detailFetched: v.optional(v.boolean()),
           description: v.optional(v.string()),
           priceHint: v.optional(v.string()),
           locationHint: v.optional(v.string()),
@@ -630,12 +640,16 @@ export const getLastSearchFindings = query({
     let record: {
       query: string;
       createdAt: number;
-      propertyFindings: Array<{
-        title: string;
-        propertyUrl?: string;
-        description?: string;
-        priceHint?: string;
-        locationHint?: string;
+        propertyFindings: Array<{
+          title: string;
+          propertyUrl?: string;
+          sourceUrl: string;
+          sourceTitle?: string;
+          detailSourceUrl?: string;
+          detailFetched?: boolean;
+          description?: string;
+          priceHint?: string;
+          locationHint?: string;
         bathrooms?: string;
         area?: string;
         features?: string[];
@@ -666,6 +680,10 @@ export const getLastSearchFindings = query({
       index: i + 1,
       title: f.title,
       propertyUrl: f.propertyUrl,
+      sourceUrl: f.sourceUrl,
+      sourceTitle: f.sourceTitle,
+      detailSourceUrl: f.detailSourceUrl,
+      detailFetched: f.detailFetched,
       description: f.description,
       priceHint: f.priceHint,
       locationHint: f.locationHint,

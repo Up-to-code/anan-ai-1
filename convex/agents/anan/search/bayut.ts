@@ -31,7 +31,52 @@ function queryToSlug(query: string): string {
   return cleaned || "عقارات-الرياض";
 }
 
+function extractFirstHttpUrl(text: string): string | null {
+  const match = text.match(/https?:\/\/[^\s)]+/i);
+  return match?.[0] ?? null;
+}
+
+function parseBayutListingSeed(query: string): {
+  basePath: string;
+  startPage: number;
+} | null {
+  const firstUrl = extractFirstHttpUrl(query);
+  if (!firstUrl) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(firstUrl);
+  } catch {
+    return null;
+  }
+  if (!parsed.hostname.toLowerCase().includes("bayut.sa")) return null;
+
+  const decodedPath = (() => {
+    try {
+      return decodeURIComponent(parsed.pathname);
+    } catch {
+      return parsed.pathname;
+    }
+  })();
+  if (!decodedPath.startsWith("/s/")) return null;
+
+  const pageMatch = decodedPath.match(/\/صفحة-(\d+)\/?$/);
+  const startPage = pageMatch ? Math.max(1, Number(pageMatch[1])) : 1;
+  const basePath = decodedPath.replace(/\/صفحة-\d+\/?$/, "/");
+  return { basePath: basePath.endsWith("/") ? basePath : `${basePath}/`, startPage };
+}
+
 export function buildBayutSearchUrl(query: string, page?: number): string | null {
+  const listingSeed = parseBayutListingSeed(query);
+  if (listingSeed) {
+    const requestedPage = page && page > 0 ? page : 1;
+    const effectivePage = listingSeed.startPage + (requestedPage - 1);
+    const base = `${BAYUT_BASE}${listingSeed.basePath}`;
+    if (effectivePage > 1) {
+      return `${base}صفحة-${effectivePage}/`;
+    }
+    return base;
+  }
+
   if (!isSaudiPropertyQuery(query)) return null;
 
   const slug = queryToSlug(query);

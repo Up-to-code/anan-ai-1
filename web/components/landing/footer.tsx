@@ -7,25 +7,26 @@ const footerLinks = [
     {
         title: "المنصة",
         links: [
-            { label: "ابدأ محادثة", href: "/chat/new" },
-            { label: "المميزات", href: "/#features" },
-            { label: "الأسعار", href: "/#stats" },
+            { label: "ابدأ محادثة", href: "/#ask" },
+            { label: "لماذا", href: "/#why" },
+            { label: "عن الفكرة", href: "/#about" },
+            { label: "الفكرة", href: "/#idea" },
         ],
     },
     {
-        title: "الدعم",
+        title: "القيمة",
         links: [
-            { label: "الأسئلة الشائعة", href: "#" },
-            { label: "تواصل معنا", href: "#" },
-            { label: "مركز المساعدة", href: "#" },
+            { label: "لماذا نحن", href: "/#why-us" },
+            { label: "عن الفكرة", href: "/#about" },
+            { label: "ابدأ الآن", href: "/#ask" },
         ],
     },
     {
-        title: "القانون",
+        title: "روابط",
         links: [
-            { label: "سياسة الخصوصية", href: "#" },
-            { label: "شروط الاستخدام", href: "#" },
-            { label: "اتفاقية المستخدم", href: "#" },
+            { label: "الدردشة", href: "/chat/new" },
+            { label: "الإعدادات", href: "/settings" },
+            { label: "الملف الشخصي", href: "/profile" },
         ],
     },
 ];
@@ -44,7 +45,7 @@ export function Footer() {
                             <span className="text-lg font-bold text-foreground">عنان AI</span>
                         </div>
                         <p className="text-sm text-muted-foreground leading-relaxed max-w-xs">
-                            أول وكيل عقاري ذكي في العالم العربي. نساعدك تلاقي عقارك المثالي بالذكاء الاصطناعي.
+                            مساعدك العقاري الذكي — بحث، مقارنة، ونصيحة في محادثة واحدة.
                         </p>
                     </div>
 
@@ -73,9 +74,7 @@ export function Footer() {
                     <p className="text-xs text-muted-foreground/50">
                         © {new Date().getFullYear()} عنان AI. جميع الحقوق محفوظة.
                     </p>
-                    <p className="text-xs text-muted-foreground/50">
-                        صنع بـ ❤️ في السعودية
-                    </p>
+                    <p className="text-xs text-muted-foreground/50">تصميم نظيف لتجربة عقارية حديثة</p>
                 </div>
             </div>
         </footer>

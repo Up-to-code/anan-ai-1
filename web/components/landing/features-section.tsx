@@ -1,126 +1,115 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Search, Calculator, Clock, Shield, Building2, MessageCircle } from "lucide-react";
+import { Compass, LineChart, ShieldCheck, Sparkles } from "lucide-react";
+import { HeroGallery } from "@/components/landing/hero-gallery";
 
-const features = [
-    {
-        icon: Search,
-        title: "بحث ذكي",
-        description: "ابحث عن عقارك المثالي بالمحادثة. قل ما تريد، وعنان يبحث لك.",
-        gradient: "from-blue-500/20 to-cyan-500/10",
-        iconColor: "text-blue-400",
-    },
-    {
-        icon: Calculator,
-        title: "حاسبة التمويل",
-        description: "احسب قرضك العقاري فورًا مع مقارنة عروض البنوك المختلفة.",
-        gradient: "from-emerald-500/20 to-green-500/10",
-        iconColor: "text-emerald-400",
-    },
-    {
-        icon: MessageCircle,
-        title: "محادثة طبيعية",
-        description: "تكلم بالعربي بطريقتك، وعنان يفهمك ويرد عليك بلهجتك.",
-        gradient: "from-violet-500/20 to-purple-500/10",
-        iconColor: "text-violet-400",
-    },
-    {
-        icon: Clock,
-        title: "متاح ٢٤/٧",
-        description: "وكيلك الذكي متاح في أي وقت، بدون انتظار أو مواعيد.",
-        gradient: "from-amber-500/20 to-orange-500/10",
-        iconColor: "text-amber-400",
-    },
-    {
-        icon: Building2,
-        title: "عقارات موثقة",
-        description: "عقارات حقيقية وبيانات محدثة من مصادر موثوقة.",
-        gradient: "from-rose-500/20 to-pink-500/10",
-        iconColor: "text-rose-400",
-    },
-    {
-        icon: Shield,
-        title: "خصوصية تامة",
-        description: "محادثاتك سرية ومحمية. بياناتك لن تشارك مع أي طرف.",
-        gradient: "from-teal-500/20 to-cyan-500/10",
-        iconColor: "text-teal-400",
-    },
+const WHY_ITEMS = [
+  {
+    icon: Compass,
+    title: "لماذا عنان؟",
+    description:
+      "البحث العقاري التقليدي مشتت. عنان يجمع لك الخيارات في محادثة واحدة — بدون تنقل بين عشرات المواقع.",
+  },
+  {
+    icon: LineChart,
+    title: "لماذا هذه الفكرة؟",
+    description:
+      "القرار العقاري قرار مالي كبير. عنان يفهم هدفك، يختصر الخيارات، ويقترح الخطوة التالية بسرعة ووضوح.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "لماذا نحن؟",
+    description:
+      "بيانات عملية، تجربة بسيطة، وتوصيات قابلة للتنفيذ — لا نصائح عامة ولا واجهات معقدة.",
+  },
 ];
 
-const container = {
-    hidden: { opacity: 0 },
-    show: {
-        opacity: 1,
-        transition: { staggerChildren: 0.1, delayChildren: 0.2 },
-    },
-};
-
-const item = {
-    hidden: { opacity: 0, y: 30 },
-    show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" as const } },
-};
+const WHY_US_POINTS = [
+  "واجهة سهلة وبدون تشتيت",
+  "مخرجات مرتبة: سعر، موقع، غرف، مساحة",
+  "البحث والمقارنة في مكان واحد",
+  "متوافق مع الموبايل وسريع التحميل",
+];
 
 export function FeaturesSection() {
-    return (
-        <section className="relative py-24 px-4 sm:px-6 overflow-hidden" id="features">
-            {/* Background decoration */}
-            <div className="absolute inset-0 pointer-events-none">
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-primary/5 rounded-full blur-3xl" />
-            </div>
+  return (
+    <section id="why" className="px-4 py-20 sm:px-6">
+      <div className="mx-auto w-full max-w-6xl">
+        <motion.div
+          initial={{ opacity: 0, y: 18 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.45 }}
+          className="mb-10 text-center"
+        >
+          <p className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+            <Sparkles className="h-3.5 w-3.5" />
+            ما الذي يميّز عنان؟
+          </p>
+          <h2 className="mt-4 text-3xl font-bold text-foreground sm:text-4xl">
+            البحث العقاري أصبح أبسط
+          </h2>
+          <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
+            وضوح القيمة، تجربة سلسة، وتحويل سريع إلى محادثة فعلية من أول رسالة.
+          </p>
+        </motion.div>
 
-            <div className="relative max-w-6xl mx-auto">
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true, margin: "-100px" }}
-                    transition={{ duration: 0.6 }}
-                    className="text-center mb-16"
-                >
-                    <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-                        كل ما تحتاجه في <span className="text-primary">مكان واحد</span>
-                    </h2>
-                    <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-                        عنان يجمع لك كل أدوات البحث العقاري في وكيل ذكي واحد يفهم احتياجاتك
-                    </p>
-                </motion.div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          {WHY_ITEMS.map((item, index) => (
+            <motion.article
+              key={item.title}
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: index * 0.08, duration: 0.4 }}
+              className="rounded-2xl border border-border/35 bg-card/45 p-6 backdrop-blur-sm"
+            >
+              <item.icon className="h-5 w-5 text-primary" />
+              <h3 className="mt-3 text-lg font-semibold text-foreground">
+                {item.title}
+              </h3>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                {item.description}
+              </p>
+            </motion.article>
+          ))}
+        </div>
 
-                <motion.div
-                    variants={container}
-                    initial="hidden"
-                    whileInView="show"
-                    viewport={{ once: true, margin: "-50px" }}
-                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"
-                >
-                    {features.map((feature) => {
-                        const Icon = feature.icon;
-                        return (
-                            <motion.div
-                                key={feature.title}
-                                variants={item}
-                                className="group relative rounded-2xl border border-border/30 bg-card/30 backdrop-blur-sm p-6 transition-all duration-300 hover:border-primary/20 hover:bg-card/50 hover:shadow-xl hover:shadow-primary/5"
-                            >
-                                <div
-                                    className={`inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br ${feature.gradient} mb-4 transition-transform group-hover:scale-110`}
-                                >
-                                    <Icon className={`h-6 w-6 ${feature.iconColor}`} />
-                                </div>
+        <motion.div
+          id="why-us"
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.45 }}
+          className="mt-10 rounded-2xl border border-border/35 bg-card/40 p-6 sm:p-8"
+        >
+          <h3 className="text-xl font-semibold text-foreground">لماذا نحن عمليًا؟</h3>
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {WHY_US_POINTS.map((point) => (
+              <div
+                key={point}
+                className="rounded-xl border border-border/30 bg-background/65 px-4 py-3 text-sm text-foreground/90"
+              >
+                {point}
+              </div>
+            ))}
+          </div>
+        </motion.div>
 
-                                <h3 className="text-lg font-bold text-foreground mb-2">
-                                    {feature.title}
-                                </h3>
-
-                                <p className="text-sm text-muted-foreground leading-relaxed">
-                                    {feature.description}
-                                </p>
-
-                                {/* Hover glow */}
-                                <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-                            </motion.div>
-                        );
-                    })}
-                </motion.div>
-            </div>
-        </section>
-    );
+        <motion.div
+          initial={{ opacity: 0, y: 18 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.4 }}
+          className="mt-8"
+        >
+          <p className="mb-3 text-right text-sm font-medium text-muted-foreground">
+            لمحة سريعة من الخيارات العقارية
+          </p>
+          <HeroGallery itemClassName="h-36 sm:h-40" />
+        </motion.div>
+      </div>
+    </section>
+  );
 }

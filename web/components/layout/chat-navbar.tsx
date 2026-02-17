@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Menu, Moon, Sun, Settings, Plus, RefreshCw } from "lucide-react";
+import { Menu, Moon, Sun, Settings, Plus } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { Sidebar } from "@/components/layout/sidebar";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
@@ -20,14 +20,10 @@ export function ChatNavbar() {
     router.push("/chat/new");
   };
 
-  const handleRefresh = () => {
-    window.location.reload();
-  };
-
   return (
     <header
       dir="rtl"
-      className="flex h-12 items-center justify-between gap-2 border-b border-border/30 px-3 lg:px-4 bg-background/80 backdrop-blur-sm z-20 shrink-0"
+      className="z-20 flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border/40 bg-background/90 px-3 backdrop-blur-sm lg:px-4"
     >
       {/* Right side: Menu + Logo */}
       <div className="flex items-center gap-2">
@@ -65,17 +61,6 @@ export function ChatNavbar() {
           <Plus className="h-4 w-4" />
         </Button>
 
-        {/* Refresh */}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleRefresh}
-          className="h-8 w-8 text-muted-foreground hover:text-foreground"
-          aria-label="تحديث"
-        >
-          <RefreshCw className="h-3.5 w-3.5" />
-        </Button>
-
         {/* Settings */}
         <Button
           variant="ghost"
@@ -109,6 +94,7 @@ export function ChatNavbar() {
             aria-label="الملف الشخصي"
           >
             {user.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
               <img src={user.image} alt="" className="h-6 w-6 rounded-full object-cover" />
             ) : (
               <div className="h-6 w-6 rounded-full bg-primary/15 flex items-center justify-center text-[10px] font-bold text-primary">
