@@ -3,6 +3,7 @@
  */
 
 import { cleanWhitespace, sanitizeWebText } from "../../_lib/sanitize";
+import { fetchJsonWithRetry } from "../../_lib/http";
 import {
   extractQueryLocation,
   getDomain,
@@ -21,6 +22,24 @@ import {
 import { scorePropertyResult, attachMultipleImages } from "./quality";
 import type { SerperResult, SerperImageResult } from "./types";
 
+function readPositiveInt(raw: string | undefined, fallback: number): number {
+  if (!raw) return fallback;
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+const SERPER_QUERY_PARALLELISM = readPositiveInt(
+  process.env.SERPER_QUERY_PARALLELISM,
+  3,
+);
+const SERPER_TIMEOUT_MS = readPositiveInt(process.env.SERPER_TIMEOUT_MS, 7000);
+const SERPER_MAX_RETRIES = readPositiveInt(process.env.SERPER_MAX_RETRIES, 2);
+
+type SerperPayload = {
+  organic?: Array<{ title?: string; link?: string; snippet?: string }>;
+  images?: Array<{ title?: string; link?: string; imageUrl?: string }>;
+};
+
 async function runSerperImageSearch(
   query: string,
   limit: number,
@@ -29,23 +48,25 @@ async function runSerperImageSearch(
   const apiKey = process.env.SERPER_API_KEY;
   if (!apiKey) return [];
   try {
-    const res = await fetch("https://google.serper.dev/images", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-API-KEY": apiKey,
-      },
-      body: JSON.stringify({
-        q: query,
-        num: Math.min(limit * 3, 30),
-        gl: locale.gl,
-        hl: locale.hl,
-      }),
-    });
-    if (!res?.ok) return [];
-    const data = (await res.json()) as {
+    const data = await fetchJsonWithRetry<{
       images?: Array<{ title?: string; link?: string; imageUrl?: string }>;
-    };
+    }>(
+      "https://google.serper.dev/images",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-KEY": apiKey,
+        },
+        body: JSON.stringify({
+          q: query,
+          num: Math.min(limit * 3, 30),
+          gl: locale.gl,
+          hl: locale.hl,
+        }),
+      },
+      { timeoutMs: SERPER_TIMEOUT_MS, maxRetries: SERPER_MAX_RETRIES },
+    );
     return (data.images ?? []).filter((item) => Boolean(item.imageUrl));
   } catch {
     return [];
@@ -171,10 +192,10 @@ export async function runSerperSearch(
   console.log("[anan.search] serper:start", { query, optimizedQuery });
 
   try {
-    const serperQueries = buildDomainConstrainedQueries(optimizedQuery);
-    const settledResponses = await Promise.allSettled(
-      serperQueries.map(async (q) => {
-        const res = await fetch("https://google.serper.dev/search", {
+    const runSingleQuery = (q: string) =>
+      fetchJsonWithRetry<SerperPayload>(
+        "https://google.serper.dev/search",
+        {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -187,25 +208,23 @@ export async function runSerperSearch(
             gl: locale.gl,
             hl: locale.hl,
           }),
-        });
-        if (!res?.ok) {
-          const status = res?.status ?? "unknown";
-          throw new Error(`serper_http_${status}`);
+        },
+        { timeoutMs: SERPER_TIMEOUT_MS, maxRetries: SERPER_MAX_RETRIES },
+      );
+
+    const serperQueries = buildDomainConstrainedQueries(optimizedQuery);
+    const responses: SerperPayload[] = [];
+    for (let i = 0; i < serperQueries.length; i += SERPER_QUERY_PARALLELISM) {
+      const batch = serperQueries.slice(i, i + SERPER_QUERY_PARALLELISM);
+      const settledResponses = await Promise.allSettled(
+        batch.map((q) => runSingleQuery(q)),
+      );
+      for (const item of settledResponses) {
+        if (item.status === "fulfilled") {
+          responses.push(item.value);
         }
-        return (await res.json()) as {
-          organic?: Array<{ title?: string; link?: string; snippet?: string }>;
-          images?: Array<{ title?: string; link?: string; imageUrl?: string }>;
-        };
-      }),
-    );
-    const responses = settledResponses
-      .filter(
-        (item): item is PromiseFulfilledResult<{
-          organic?: Array<{ title?: string; link?: string; snippet?: string }>;
-          images?: Array<{ title?: string; link?: string; imageUrl?: string }>;
-        }> => item.status === "fulfilled",
-      )
-      .map((item) => item.value);
+      }
+    }
     if (responses.length === 0) {
       return { ok: false, error: "serper_multi_query_failed" };
     }

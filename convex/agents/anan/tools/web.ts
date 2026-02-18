@@ -132,9 +132,6 @@ export function createWebTools(_appApi: AgentToolsApi) {
         .describe("When true, runs 2 related queries and merges results for comprehensive answers"),
     }),
     handler: async (ctx, { query, num, deep }) => {
-      // #region agent log
-      fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/agents/anan/tools/web.ts:searchRealEstateInfo',message:'tool invoked',data:{tool:'searchRealEstateInfo',queryPreview:String(query).slice(0,60),queryLen:query.length},hypothesisId:'agent_tool_searchRealEstateInfo',timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       const effectiveNum = deep ? Math.max(num, 10) : num;
       debugLog("tools.searchRealEstateInfo", "start", { query, num: effectiveNum, deep });
       const shapedQuery = shapeRealEstateQuery(query);

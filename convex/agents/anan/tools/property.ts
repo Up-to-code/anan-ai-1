@@ -832,9 +832,6 @@ export function createPropertyTools(appApi: AgentToolsApi) {
         channel,
         excludedPreviousResults: excludedUrlKeys.size,
       });
-      // #region agent log
-      fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/agents/anan/tools/property.ts:smartPropertySearch',message:'tool invoked',data:{tool:'smartPropertySearch',queryPreview:String(query).slice(0,60),queryLen:query.length},hypothesisId:'agent_tool_smartPropertySearch',timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
 
       await logSearchLifecycle(ctx, appApi, {
         query,

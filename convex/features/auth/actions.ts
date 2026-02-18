@@ -65,9 +65,6 @@ export const requestVerification = action({
     /** Only set when CONVEX_DEV_LOG_OTP=1 – use for local login without WhatsApp */
     devOtp?: string;
   }> => {
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/features/auth/actions.ts:requestVerification',message:'requestVerification entry',data:{func:'requestVerification',phoneLen:phoneNumber.length},hypothesisId:'F9',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     console.log("[AuthActions] requestVerification start", {
       phoneNumber,
     });
@@ -341,9 +338,6 @@ export const completeVerification = internalMutation({
 export const verifyOTP = action({
   args: { phoneNumber: v.string(), otp: v.string() },
   handler: async (ctx, { phoneNumber, otp }): Promise<{ success: boolean; error?: "INVALID_OTP" | "EXPIRED" | "NOT_FOUND" }> => {
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/features/auth/actions.ts:verifyOTP',message:'verifyOTP entry',data:{func:'verifyOTP',phoneLen:phoneNumber.length,otpLen:otp.length},hypothesisId:'F18',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     const normalized = normalizePhone(phoneNumber);
     const result = await ctx.runMutation(internal.features.auth.actions.completeVerification, {
       phoneNumber: normalized,

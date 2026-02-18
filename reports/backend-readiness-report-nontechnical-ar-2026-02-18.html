@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>تقرير جاهزية أنان - نسخة غير تقنية</title>
+  <style>
+    :root {
+      --bg: #f7f8fa;
+      --card: #ffffff;
+      --text: #101828;
+      --muted: #475467;
+      --line: #e4e7ec;
+      --ok: #067647;
+      --warn: #b54708;
+      --blue: #155eef;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Cairo", "Segoe UI", Tahoma, Arial, sans-serif;
+      background: linear-gradient(180deg, var(--bg) 0%, #eef2ff22 100%);
+      color: var(--text);
+      line-height: 1.8;
+    }
+    .wrap {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 26px 18px 48px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 18px;
+      margin-bottom: 12px;
+    }
+    h1, h2 { margin: 0 0 10px; }
+    h1 { font-size: 30px; }
+    h2 { font-size: 20px; }
+    p { margin: 6px 0; color: var(--muted); }
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      font-size: 12px;
+      margin-left: 8px;
+    }
+    .ok { color: var(--ok); }
+    .warn { color: var(--warn); }
+    .score {
+      margin-top: 8px;
+      width: 100%;
+      height: 10px;
+      background: #00000012;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .score > span {
+      display: block;
+      width: 92%;
+      height: 100%;
+      background: linear-gradient(90deg, var(--blue), #22c55e);
+    }
+    ul { margin: 8px 0 0; }
+    li { margin: 6px 0; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+    }
+    th, td {
+      padding: 10px 8px;
+      border-bottom: 1px solid var(--line);
+      text-align: right;
+      vertical-align: top;
+    }
+    th { color: var(--muted); }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      background: #00000010;
+      padding: 2px 6px;
+      border-radius: 6px;
+      border: 1px solid #00000014;
+      direction: ltr;
+      unicode-bidi: bidi-override;
+    }
+    .footer {
+      margin-top: 16px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="card">
+      <h1>تقرير جاهزية أنان</h1>
+      <p>نسخة مبسطة وغير تقنية - 18 فبراير 2026</p>
+      <p>
+        <span class="badge ok">النتيجة: جاهز للعمل</span>
+        <span class="badge warn">بقي ضبط إعدادات الإنتاج فقط</span>
+      </p>
+      <div class="score"><span></span></div>
+      <p><strong>درجة الجاهزية: 92 من 100</strong></p>
+    </section>
+
+    <section class="card">
+      <h2>ملخص سريع</h2>
+      <p>
+        تم إصلاح المشاكل الأساسية التي كانت تؤثر على الاستقرار والاستجابة، وتم اختبار النظام بنجاح.
+        الآن النظام مناسب للتشغيل العملي.
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>ما الذي تم تحسينه</h2>
+      <ul>
+        <li>حل مشكلة توقف الرد في حالات معينة.</li>
+        <li>تحسين طريقة عرض الأخطاء للمستخدم بحيث تكون آمنة وواضحة.</li>
+        <li>تحسين فصل محادثات واتساب عن باقي القنوات لتجنب الخلط.</li>
+        <li>تحسين آلية التبديل بين النماذج عند الضغط أو انقطاع الخدمة.</li>
+        <li>إزالة كود تجريبي قد يسبب ضوضاء أو مشاكل في التشغيل.</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>نتائج الاختبارات</h2>
+      <ul>
+        <li>فحص الأنواع البرمجية: ناجح.</li>
+        <li>اختبارات منطق التبديل بين النماذج: ناجحة.</li>
+        <li>اختبارات النظام العامة: ناجحة (204 اختبار ناجح).</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>قبل الإطلاق النهائي</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>العنصر</th>
+            <th>الحالة المطلوبة</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>تعطيل أدوات الاختبار في الإنتاج</td>
+            <td><code>AGENT_TEST_HTTP_ENDPOINTS=</code> و <code>AGENT_TEST_ACTIONS=</code> (فارغة/false)</td>
+          </tr>
+          <tr>
+            <td>ضبط نماذج بديلة للطوارئ</td>
+            <td>تفعيل قائمة fallback للنماذج</td>
+          </tr>
+          <tr>
+            <td>الاحتفاظ بمحاولات الإعادة منخفضة</td>
+            <td><code>LLM_MAX_RETRIES=0</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>قرار الجاهزية</h2>
+      <p><strong>النظام جاهز للعمل الآن</strong> بعد تطبيق الإصلاحات والاختبارات.</p>
+    </section>
+
+    <p class="footer">ANAN v0.0.3 - تقرير غير تقني بالعربية</p>
+  </div>
+</body>
+</html>

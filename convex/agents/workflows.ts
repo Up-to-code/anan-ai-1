@@ -8,15 +8,50 @@ import { components } from "../_generated/api";
 import { internalAction } from "../_generated/server";
 import { v } from "convex/values";
 
+function readPositiveInt(raw: string | undefined, fallback: number): number {
+  if (!raw) return fallback;
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+function readBoolean(raw: string | undefined, fallback: boolean): boolean {
+  if (!raw) return fallback;
+  const normalized = raw.trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "off"].includes(normalized)) return false;
+  return fallback;
+}
+
+const WORKFLOW_MAX_ATTEMPTS = readPositiveInt(
+  process.env.AGENT_WORKFLOW_MAX_ATTEMPTS,
+  5,
+);
+const WORKFLOW_INITIAL_BACKOFF_MS = readPositiveInt(
+  process.env.AGENT_WORKFLOW_INITIAL_BACKOFF_MS,
+  250,
+);
+const WORKFLOW_BACKOFF_BASE = readPositiveInt(
+  process.env.AGENT_WORKFLOW_BACKOFF_BASE,
+  2,
+);
+const WORKFLOW_MAX_PARALLELISM = readPositiveInt(
+  process.env.AGENT_WORKFLOW_MAX_PARALLELISM,
+  60,
+);
+const WORKFLOW_RETRY_GENERATE_RESPONSE = readBoolean(
+  process.env.AGENT_WORKFLOW_RETRY_GENERATE_RESPONSE,
+  false,
+);
+
 export const workflow = new WorkflowManager(components.workflow, {
   workpoolOptions: {
     defaultRetryBehavior: {
-      maxAttempts: 4,
-      initialBackoffMs: 250,
-      base: 2,
+      maxAttempts: WORKFLOW_MAX_ATTEMPTS,
+      initialBackoffMs: WORKFLOW_INITIAL_BACKOFF_MS,
+      base: WORKFLOW_BACKOFF_BASE,
     },
     retryActionsByDefault: false,
-    maxParallelism: 20,
+    maxParallelism: WORKFLOW_MAX_PARALLELISM,
   },
 });
 
@@ -40,7 +75,10 @@ export const generateResponseWorkflow = workflow.define({
     await step.runAction(
       internal.agents.actions.generateResponse,
       { threadId, promptMessageId, channel },
-      { retry: true, name: "generateResponse" }
+      {
+        retry: WORKFLOW_RETRY_GENERATE_RESPONSE,
+        name: "generateResponse",
+      }
     );
   },
 });
@@ -59,9 +97,6 @@ export const startGenerateResponseWorkflow = internalAction({
     ),
   },
   handler: async (ctx, args): Promise<string> => {
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/agents/workflows.ts:startGenerateResponseWorkflow',message:'startGenerateResponseWorkflow entry',data:{func:'startGenerateResponseWorkflow',threadId:args.threadId,channel:args.channel},hypothesisId:'F4',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     const wf = internal.agents.workflows.generateResponseWorkflow;
     return workflow.start(ctx, wf, args);
   },

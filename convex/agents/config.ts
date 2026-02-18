@@ -28,8 +28,9 @@ export type AgentLLMConfig =
 
 const DEFAULT_LOCAL_BASE_URL = "http://127.0.0.1:1234/v1";
 const DEFAULT_LOCAL_MODEL = "google/gemma-3-4b";
-const DEFAULT_OPENROUTER_MODEL = "openrouter/aurora-alpha";
+const DEFAULT_OPENROUTER_MODEL = "stepfun/step-3.5-flash:free";
 const DEFAULT_LLM_TIMEOUT_MS = 15000; // 15s – set LLM_TIMEOUT_MS to override (plan: 15–20s for fewer false timeouts)
+const DEFAULT_LLM_MAX_RETRIES = 0;
 
 function parseMode(raw: string | undefined): LLMMode {
   const v = (raw ?? "").toLowerCase().trim();
@@ -104,4 +105,12 @@ export function getLLMTimeoutMs(): number {
   if (raw == null || raw === "") return DEFAULT_LLM_TIMEOUT_MS;
   const n = parseInt(raw, 10);
   return Number.isFinite(n) && n > 0 ? n : DEFAULT_LLM_TIMEOUT_MS;
+}
+
+/** Max retry attempts per model call at AI SDK level. Default 0 to avoid retry storms under provider 429s. */
+export function getLLMMaxRetries(): number {
+  const raw = process.env.LLM_MAX_RETRIES;
+  if (raw == null || raw === "") return DEFAULT_LLM_MAX_RETRIES;
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) && n >= 0 ? n : DEFAULT_LLM_MAX_RETRIES;
 }

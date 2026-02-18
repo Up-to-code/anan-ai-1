@@ -64,9 +64,6 @@ export const ensureWhatsAppUser = mutation({
   },
   returns: v.id("userProfiles"),
   handler: async (ctx, { userId, displayName }) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'convex/services/users.ts:ensureWhatsAppUser', message: 'ensureWhatsAppUser entry', data: { func: 'ensureWhatsAppUser', userIdLen: userId.length, hasDisplayName: Boolean(displayName) }, hypothesisId: 'F16', timestamp: Date.now() }) }).catch(() => { });
-    // #endregion
     const existing = await ctx.db
       .query("userProfiles")
       .withIndex("userId", (q) => q.eq("userId", userId))
@@ -151,9 +148,6 @@ export const upsert = mutation({
   args: upsertArgs,
   returns: v.id("userProfiles"),
   handler: async (ctx, args) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'convex/services/users.ts:upsert', message: 'upsert entry', data: { func: 'upsert', userId: args.userId, keys: Object.keys(args).filter(k => k !== 'userId') }, hypothesisId: 'F6', timestamp: Date.now() }) }).catch(() => { });
-    // #endregion
     const authUserId = await optionalAuth(ctx);
     if (authUserId !== args.userId) {
       await requireAdmin(ctx);

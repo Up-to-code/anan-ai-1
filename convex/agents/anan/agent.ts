@@ -4,22 +4,28 @@
 
 import { Agent } from "@convex-dev/agent";
 import { components } from "../../_generated/api";
-import { getLLMTimeoutMs } from "../config";
 import { getChatModel, getEmbeddingModel } from "../../lib/providers";
 import { recordAgentUsage } from "../../costs";
+import { getLLMMaxRetries } from "../config";
 import { buildAgentInstructions } from "./instructions";
 import { createAgentTools } from "./tools";
 import type { AgentToolsApi } from "./tools";
 
+type AgentBuildOptions = {
+  modelOverride?: string;
+};
+
 /** Create the Anan agent with tools bound to the given api. */
-export function createAnanAgent(appApi: AgentToolsApi) {
+export function createAnanAgent(
+  appApi: AgentToolsApi,
+  options?: AgentBuildOptions,
+) {
   const tools = createAgentTools(appApi);
 
   return new Agent(components.agent, {
     name: "ANAN",
-    languageModel: getChatModel(),
+    languageModel: getChatModel(options?.modelOverride),
     textEmbeddingModel: getEmbeddingModel(),
-    callSettings: { timeout: getLLMTimeoutMs() },
     instructions: buildAgentInstructions(),
     tools,
     maxSteps: 6,
@@ -48,6 +54,9 @@ export function createAnanAgent(appApi: AgentToolsApi) {
         model: args.model,
         provider: args.provider,
       });
+    },
+    callSettings: {
+      maxRetries: getLLMMaxRetries(),
     },
     contextOptions: {
       searchOptions: {
