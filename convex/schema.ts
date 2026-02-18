@@ -311,12 +311,17 @@ export default defineSchema({
   threadMetadata: defineTable({
     threadId: v.string(),
     userId: v.string(),
+    channel: v.optional(
+      v.union(v.literal("whatsapp"), v.literal("app"), v.literal("web")),
+    ),
     lastActivityAt: v.number(),
     expiresAt: v.optional(v.number()),
     archivedAt: v.optional(v.number()),
   })
     .index("threadId", ["threadId"])
     .index("userId", ["userId"])
+    .index("userId_and_channel", ["userId", "channel"])
+    .index("userId_channel_lastActivityAt", ["userId", "channel", "lastActivityAt"])
     .index("expiresAt", ["expiresAt"])
     .index("archivedAt", ["archivedAt"]),
 

@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>تقرير الوكيل - عربي</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #f8fafc;
+        --surface: #ffffff;
+        --text: #0f172a;
+        --muted: #475569;
+        --line: #e2e8f0;
+        --brand: #0f766e;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Cairo", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+      .wrap {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 28px 18px 96px;
+      }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 18px;
+        margin-bottom: 14px;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 30px;
+      }
+      h2 {
+        margin: 0 0 8px;
+        font-size: 20px;
+      }
+      p, li {
+        line-height: 1.8;
+      }
+      .muted {
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .status {
+        display: inline-block;
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: #ccfbf1;
+        color: #115e59;
+        border: 1px solid #99f6e4;
+        font-weight: 700;
+        font-size: 13px;
+      }
+      .export {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        border-top: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.96);
+      }
+      .export-inner {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 10px 18px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+      }
+      button {
+        font: inherit;
+        font-weight: 700;
+        border: 1px solid var(--brand);
+        background: var(--brand);
+        color: #fff;
+        border-radius: 10px;
+        padding: 10px 14px;
+        cursor: pointer;
+      }
+      @media print {
+        .export { display: none; }
+        body { background: #fff; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <section class="card">
+        <span class="status">تقرير عربي</span>
+        <h1>تقرير أداء الوكيل (0.0.3)</h1>
+        <p class="muted">التاريخ: 18 فبراير 2026</p>
+        <p>
+          هذا التقرير يعرض حالة النظام بشكل مبسط: حفظ الرسائل، قراءة المحادثات، وثبات
+          الاستجابة عبر واجهة المحادثة.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>ملخص تنفيذي</h2>
+        <ul>
+          <li>حفظ الرسائل يعمل وتم التحقق من تسجيل المحادثة في قاعدة البيانات.</li>
+          <li>استرجاع الرسائل من نفس المحادثة يعمل من مسار العميل.</li>
+          <li>توجد حاجة لمزامنة كاملة بين جميع بيئات النشر لتفادي اختلاف السلوك.</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>ما الذي تم التحقق منه</h2>
+        <ul>
+          <li>إنشاء محادثة جديدة عبر API وإرجاع معرف المحادثة بنجاح.</li>
+          <li>ظهور سجل النشاط `message_sent` في البيانات.</li>
+          <li>قراءة الرسائل من `getThreadMessages` وإظهار محتوى الرسالة.</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>نقاط التحسين المقترحة</h2>
+        <ul>
+          <li>توحيد إعدادات النشر بين dev وprod.</li>
+          <li>تقوية مسار توليد رد المساعد عند الضغط العالي.</li>
+          <li>اعتماد اختبارات حمل دورية (Ramp / Spike / Soak).</li>
+        </ul>
+      </section>
+    </main>
+
+    <div class="export">
+      <div class="export-inner">
+        <span class="muted">للتصدير PDF استخدم زر الطباعة من المتصفح</span>
+        <button onclick="window.print()">تصدير PDF</button>
+      </div>
+    </div>
+  </body>
+</html>

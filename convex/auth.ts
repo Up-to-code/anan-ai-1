@@ -79,9 +79,6 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
 export const getCurrentUser = query({
   args: {},
   handler: async (ctx) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/auth.ts:getCurrentUser',message:'getCurrentUser entry',data:{func:'getCurrentUser'},hypothesisId:'F5',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     try {
       return await authComponent.getAuthUser(ctx);
     } catch {
@@ -95,9 +92,6 @@ export const isUserAdmin = query({
   args: { userId: v.string() },
   returns: v.boolean(),
   handler: async (ctx, { userId }) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/auth.ts:isUserAdmin',message:'isUserAdmin entry',data:{func:'isUserAdmin',userIdLen:userId.length},hypothesisId:'F15',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     const legacyAdmin = await ctx.db
       .query("adminUsers")
       .withIndex("userId", (q) => q.eq("userId", userId))

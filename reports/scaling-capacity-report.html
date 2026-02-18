@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Agent Scaling Capacity Report</title>
+    <style>
+      :root {
+        --bg: #f8fafc;
+        --surface: #ffffff;
+        --text: #0f172a;
+        --muted: #475569;
+        --line: #e2e8f0;
+        --ok: #0f766e;
+        --warn: #b45309;
+        --bad: #b91c1c;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+      .wrap {
+        max-width: 1024px;
+        margin: 0 auto;
+        padding: 28px 18px 80px;
+      }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 16px;
+        margin-bottom: 12px;
+      }
+      h1, h2, h3 { margin: 0 0 8px; }
+      h1 { font-size: 30px; }
+      h2 { font-size: 20px; margin-top: 10px; }
+      p, li { line-height: 1.7; margin: 6px 0; }
+      .muted { color: var(--muted); font-size: 14px; }
+      .status {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .ok { color: var(--ok); background: #ccfbf1; border-color: #99f6e4; }
+      .warn { color: var(--warn); background: #ffedd5; border-color: #fed7aa; }
+      .bad { color: var(--bad); background: #fee2e2; border-color: #fecaca; }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 8px;
+        font-size: 14px;
+      }
+      th, td {
+        border: 1px solid var(--line);
+        padding: 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+      th { background: #f1f5f9; }
+      code {
+        background: #f1f5f9;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 1px 6px;
+      }
+      .export {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        border-top: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.96);
+      }
+      .export-inner {
+        max-width: 1024px;
+        margin: 0 auto;
+        padding: 10px 18px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      button {
+        border: 1px solid #0f172a;
+        background: #0f172a;
+        color: #fff;
+        border-radius: 8px;
+        padding: 8px 12px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      @media print {
+        .export { display: none; }
+        body { background: #fff; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <section class="card">
+        <h1>Scaling Capacity Report</h1>
+        <p class="muted">Date: February 18, 2026</p>
+        <p>
+          This report answers: <strong>"How much can the agent handle now?"</strong>
+          using real probe results plus current backend rate/concurrency limits.
+        </p>
+        <p>
+          <span class="status warn">Current verdict: Not 10k-ready for burst traffic</span>
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>Measured Load Results</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Test</th>
+              <th>Load</th>
+              <th>Result</th>
+              <th>Interpretation</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Valid message baseline</td>
+              <td>100 requests, parallel 20</td>
+              <td><span class="status ok">100% HTTP 200</span></td>
+              <td>Stable at moderate concurrency.</td>
+            </tr>
+            <tr>
+              <td>Valid message isolated run</td>
+              <td>1000 requests, parallel 20</td>
+              <td><span class="status ok">1000/1000 HTTP 200</span></td>
+              <td>Ingress works reliably in this range.</td>
+            </tr>
+            <tr>
+              <td>10k burst stress (safe payload)</td>
+              <td>10000 requests, parallel 200</td>
+              <td><span class="status bad">6006 HTTP 400, 3994 timeout (000)</span></td>
+              <td>Endpoint saturated under high burst; many transport timeouts.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="card">
+        <h2>Current Config Limits (Code)</h2>
+        <ul>
+          <li><code>chatSendGlobal</code> default: <strong>4000 req/min</strong> (`convex/lib/rateLimiter.ts`).</li>
+          <li><code>httpChatIngressPerIp</code> default: <strong>120 req/min</strong>, burst capacity 180 (`convex/lib/rateLimiter.ts`).</li>
+          <li>Workflow parallel generation workers: <strong>60</strong> (`convex/agents/workflows.ts`).</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>How Many Users Can It Handle?</h2>
+        <p>
+          The true bottleneck for AI chat is usually response-generation concurrency, not just ingress.
+          With 60 workflow workers, estimated throughput is:
+        </p>
+        <ul>
+          <li>If avg generation is 8s: about <strong>450 messages/min</strong> (~7.5 msg/s).</li>
+          <li>If avg generation is 12s: about <strong>300 messages/min</strong> (~5 msg/s).</li>
+          <li>If avg generation is 15s: about <strong>240 messages/min</strong> (~4 msg/s).</li>
+        </ul>
+        <p>
+          Equivalent active users at <strong>1 msg/user/min</strong>:
+          approximately <strong>240 to 450 active users</strong> without queue growth.
+        </p>
+        <p>
+          Equivalent active users at <strong>1 msg/user/5min</strong>:
+          approximately <strong>1200 to 2250 active users</strong>.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>Answer</h2>
+        <p>
+          Right now, the system can handle <strong>~1000 request batches at parallel 20 reliably</strong>,
+          but it <strong>cannot reliably handle 10k burst at parallel 200</strong>.
+        </p>
+        <p>
+          Practical current capacity for real AI response flow is estimated at
+          <strong>~240 to 450 messages/min</strong> (depending on model response time), not 10k simultaneous burst.
+        </p>
+      </section>
+    </main>
+
+    <div class="export">
+      <div class="export-inner">
+        <span class="muted">Use Print to export this report as PDF.</span>
+        <button onclick="window.print()">Export PDF</button>
+      </div>
+    </div>
+  </body>
+</html>

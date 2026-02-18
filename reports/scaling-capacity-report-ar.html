@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>تقرير السعة وقابلية التوسع</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #f8fafc;
+        --surface: #ffffff;
+        --text: #0f172a;
+        --muted: #475569;
+        --line: #e2e8f0;
+        --ok: #0f766e;
+        --warn: #b45309;
+        --bad: #b91c1c;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Cairo", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+      .wrap {
+        max-width: 1024px;
+        margin: 0 auto;
+        padding: 28px 18px 80px;
+      }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 16px;
+        margin-bottom: 12px;
+      }
+      h1, h2 { margin: 0 0 8px; }
+      h1 { font-size: 30px; }
+      h2 { font-size: 20px; margin-top: 10px; }
+      p, li { line-height: 1.8; margin: 6px 0; }
+      .muted { color: var(--muted); font-size: 14px; }
+      .status {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .ok { color: var(--ok); background: #ccfbf1; border-color: #99f6e4; }
+      .warn { color: var(--warn); background: #ffedd5; border-color: #fed7aa; }
+      .bad { color: var(--bad); background: #fee2e2; border-color: #fecaca; }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 8px;
+        font-size: 14px;
+      }
+      th, td {
+        border: 1px solid var(--line);
+        padding: 10px;
+        text-align: right;
+        vertical-align: top;
+      }
+      th { background: #f1f5f9; }
+      code {
+        background: #f1f5f9;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 1px 6px;
+      }
+      .export {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        border-top: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.96);
+      }
+      .export-inner {
+        max-width: 1024px;
+        margin: 0 auto;
+        padding: 10px 18px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      button {
+        border: 1px solid #0f172a;
+        background: #0f172a;
+        color: #fff;
+        border-radius: 8px;
+        padding: 8px 12px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      @media print {
+        .export { display: none; }
+        body { background: #fff; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <section class="card">
+        <h1>تقرير السعة وقابلية التوسع</h1>
+        <p class="muted">التاريخ: 18 فبراير 2026</p>
+        <p>هذا التقرير يوضح: كم مستخدم يقدر النظام يتحمل حالياً بناءً على اختبارات حقيقية وحدود الكود.</p>
+        <p><span class="status warn">النتيجة الحالية: غير جاهز لانفجار 10k دفعة واحدة</span></p>
+      </section>
+
+      <section class="card">
+        <h2>نتائج الاختبارات</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>الاختبار</th>
+              <th>الحمل</th>
+              <th>النتيجة</th>
+              <th>التفسير</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>رسالة صالحة (Baseline)</td>
+              <td>100 طلب، توازي 20</td>
+              <td><span class="status ok">100% HTTP 200</span></td>
+              <td>مستقر في التوازي المتوسط.</td>
+            </tr>
+            <tr>
+              <td>رسالة صالحة (عينة أكبر)</td>
+              <td>1000 طلب، توازي 20</td>
+              <td><span class="status ok">1000/1000 HTTP 200</span></td>
+              <td>الدخول يعمل بشكل موثوق بهذا المستوى.</td>
+            </tr>
+            <tr>
+              <td>اختبار 10k Burst</td>
+              <td>10000 طلب، توازي 200</td>
+              <td><span class="status bad">6006 HTTP 400 + 3994 timeout</span></td>
+              <td>تشبع واضح تحت الضغط العالي وظهور مهلات اتصال.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="card">
+        <h2>حدود النظام الحالية (من الكود)</h2>
+        <ul>
+          <li><code>chatSendGlobal</code>: افتراضياً <strong>4000 طلب/دقيقة</strong>.</li>
+          <li><code>httpChatIngressPerIp</code>: افتراضياً <strong>120 طلب/دقيقة</strong> لكل IP (Burst capacity = 180).</li>
+          <li>توازي الـ workflow لتوليد الرد: <strong>60 عامل</strong>.</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>كم مستخدم يقدر يتحمل الآن؟</h2>
+        <p>الاختناق الفعلي غالباً يكون في توليد ردود الذكاء الاصطناعي، وليس فقط دخول الطلبات.</p>
+        <ul>
+          <li>إذا متوسط زمن الرد 8 ثواني: تقريباً <strong>450 رسالة/دقيقة</strong>.</li>
+          <li>إذا متوسط زمن الرد 12 ثانية: تقريباً <strong>300 رسالة/دقيقة</strong>.</li>
+          <li>إذا متوسط زمن الرد 15 ثانية: تقريباً <strong>240 رسالة/دقيقة</strong>.</li>
+        </ul>
+        <p>يعني تقريبياً:</p>
+        <ul>
+          <li><strong>240 إلى 450</strong> مستخدم نشط عند معدل 1 رسالة/دقيقة لكل مستخدم.</li>
+          <li><strong>1200 إلى 2250</strong> مستخدم نشط عند معدل 1 رسالة/5 دقائق لكل مستخدم.</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>الخلاصة</h2>
+        <p>
+          حالياً النظام يتحمل بشكل جيد الحمل المتوسط (مثل 1000 طلب بتوازي 20)،
+          لكن لا يتحمل Burst بحجم 10k بتوازي 200 بشكل موثوق.
+        </p>
+      </section>
+    </main>
+
+    <div class="export">
+      <div class="export-inner">
+        <span class="muted">يمكنك التصدير PDF من زر الطباعة.</span>
+        <button onclick="window.print()">تصدير PDF</button>
+      </div>
+    </div>
+  </body>
+</html>

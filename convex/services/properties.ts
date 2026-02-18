@@ -206,9 +206,6 @@ export const search = query({
   },
   returns: v.array(propertyWithUrlValidator),
   handler: async (ctx, { query: q, limit = 20, onlyAvailable = true }) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/services/properties.ts:search',message:'search entry',data:{func:'search',queryLen:q.length,limit,onlyAvailable},hypothesisId:'F7',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     const normalized = normalizeQuery(q);
 
     // Try multi-field search first (if searchText is populated)

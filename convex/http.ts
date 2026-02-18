@@ -1,4 +1,5 @@
 import { httpRouter } from "convex/server";
+import { ConvexError } from "convex/values";
 import { httpAction } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { authComponent, createAuth } from "./auth";
@@ -7,38 +8,9 @@ import {
   handleWhatsAppWebhookPost,
 } from "./channels/whatsapp/webhook";
 import { detectChannel } from "./channels/types";
+import { enforceHttpRateLimit } from "./lib/rateLimiter";
 
 const http = httpRouter();
-
-// Simple in-memory rate limiting for HTTP endpoints
-// Note: This resets on deployment. For production, consider using a distributed rate limiter.
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-
-function checkRateLimit(key: string, maxRequests: number, windowMs: number): { allowed: boolean; retryAfter?: number } {
-  const now = Date.now();
-  const entry = rateLimitMap.get(key);
-  
-  // Clean up expired entry
-  if (entry && now > entry.resetAt) {
-    rateLimitMap.delete(key);
-  }
-  
-  const currentEntry = rateLimitMap.get(key);
-  if (!currentEntry) {
-    rateLimitMap.set(key, { count: 1, resetAt: now + windowMs });
-    return { allowed: true };
-  }
-  
-  if (currentEntry.count >= maxRequests) {
-    return { allowed: false, retryAfter: Math.ceil((currentEntry.resetAt - now) / 1000) };
-  }
-  
-  currentEntry.count++;
-  return { allowed: true };
-}
-
-// Note: Rate limit entries are cleaned up lazily when checked.
-// For production, consider using Convex's built-in rate limiting or a scheduled function.
 
 /** Better Auth routes - must be registered first */
 authComponent.registerRoutes(http, createAuth, { cors: true });
@@ -48,9 +20,6 @@ http.route({
   path: "/api/partner/properties",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/http.ts:api/partner/properties',message:'http partner properties entry',data:{func:'httpPartnerProperties',method:request.method},hypothesisId:'F8',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     const authHeader = request.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(
@@ -121,8 +90,9 @@ http.route({
         { status: 201, headers: { "Content-Type": "application/json" } }
       );
     } catch (e) {
+      console.error("[http.partner.properties] addProperty failed", e);
       return new Response(
-        JSON.stringify({ error: String(e) }),
+        JSON.stringify({ error: "Unable to create property" }),
         { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }
@@ -137,6 +107,82 @@ async function hashApiKey(apiKey: string): Promise<string> {
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+function getClientIp(request: Request): string {
+  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+}
+
+function isTruthyEnv(value: string | undefined): boolean {
+  if (!value) return false;
+  const normalized = value.trim().toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
+}
+
+function isAgentTestEndpointsEnabled(): boolean {
+  // Keep test routes disabled unless explicitly enabled in environment variables.
+  return isTruthyEnv(process.env.AGENT_TEST_HTTP_ENDPOINTS);
+}
+
+function internalErrorResponse(): Response {
+  return new Response(JSON.stringify({ error: "Internal server error" }), {
+    status: 500,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+function getRateLimitMetadata(error: unknown): {
+  message: string;
+  retryAfterSeconds?: number;
+} | null {
+  if (error instanceof ConvexError) {
+    const data = error.data;
+    if (typeof data === "object" && data && (data as { code?: string }).code === "RATE_LIMITED") {
+      return {
+        message:
+          typeof (data as { message?: unknown }).message === "string"
+            ? (data as { message: string }).message
+            : "Rate limit exceeded",
+        retryAfterSeconds:
+          typeof (data as { retryAfterSeconds?: unknown }).retryAfterSeconds === "number"
+            ? (data as { retryAfterSeconds: number }).retryAfterSeconds
+            : undefined,
+      };
+    }
+  }
+
+  const raw = String(error ?? "");
+  if (!/RATE_LIMITED|Rate limit exceeded/i.test(raw)) return null;
+  const retryAfterMatch =
+    raw.match(/"retryAfterSeconds"\s*:\s*(\d+)/) ??
+    raw.match(/"retryAfter"\s*:\s*(\d+)/);
+  const messageMatch = raw.match(/"message"\s*:\s*"([^"]+)"/);
+  return {
+    message: messageMatch?.[1] ?? "Rate limit exceeded",
+    retryAfterSeconds: retryAfterMatch?.[1]
+      ? Number.parseInt(retryAfterMatch[1], 10)
+      : undefined,
+  };
+}
+
+function maybeRateLimitedResponse(error: unknown): Response | null {
+  const metadata = getRateLimitMetadata(error);
+  if (!metadata) return null;
+  return new Response(
+    JSON.stringify({
+      error: metadata.message,
+      retryAfter: metadata.retryAfterSeconds,
+    }),
+    {
+      status: 429,
+      headers: {
+        "Content-Type": "application/json",
+        ...(metadata.retryAfterSeconds != null
+          ? { "Retry-After": String(metadata.retryAfterSeconds) }
+          : {}),
+      },
+    },
+  );
+}
+
 /** Generic chat API: POST body { threadId?, message, userId? }
  * Rate limited to prevent abuse.
  */
@@ -144,30 +190,22 @@ http.route({
   path: "/api/chat",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/http.ts:api/chat',message:'http api/chat entry',data:{func:'httpApiChat',method:request.method},hypothesisId:'F19',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-    // Rate limit by IP or user ID
-    const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-    const rateLimitKey = `chat:${clientIp}`;
-    const rateLimit = checkRateLimit(rateLimitKey, 30, 60000); // 30 requests per minute
-    
-    if (!rateLimit.allowed) {
-      return new Response(
-        JSON.stringify({ 
-          error: "Rate limit exceeded", 
-          retryAfter: rateLimit.retryAfter 
-        }),
-        { 
-          status: 429, 
-          headers: { 
-            "Content-Type": "application/json",
-            "Retry-After": String(rateLimit.retryAfter)
-          } 
-        }
+    const clientIp = getClientIp(request);
+    try {
+      await enforceHttpRateLimit(ctx, {
+        limitName: "httpChatIngressPerIp",
+        key: `chat:${clientIp}`,
+      });
+    } catch (error) {
+      return (
+        maybeRateLimitedResponse(error) ??
+        new Response(JSON.stringify({ error: "Rate limiter failed" }), {
+          status: 503,
+          headers: { "Content-Type": "application/json" },
+        })
       );
     }
-    
+
     const body = await request.json().catch(() => ({}));
     const { threadId, message, userId: clientUserId } = body as {
       threadId?: string;
@@ -212,11 +250,14 @@ http.route({
         );
       }
 
+      const detectedChannel = detectChannel({ type: "api_chat", headers: request.headers });
       let tid = threadId;
       if (!tid) {
         const { threadId: newId } = await ctx.runMutation(
           api.agents.actions.createThreadAction,
-          authUser ? { userId: authUser.id } : { userId: anonymousUserId }
+          authUser
+            ? { userId: authUser.id, channel: detectedChannel }
+            : { userId: anonymousUserId, channel: detectedChannel }
         );
         tid = newId;
       }
@@ -224,31 +265,31 @@ http.route({
         threadId: tid,
         body: message,
         userId: authUser?.id ?? anonymousUserId,
-        channel: detectChannel({ type: "api_chat", headers: request.headers }),
+        channel: detectedChannel,
       });
       return new Response(
         JSON.stringify({ threadId: tid, status: "sent" }),
         { headers: { "Content-Type": "application/json" } }
       );
     } catch (e) {
-      return new Response(
-        JSON.stringify({ error: String(e) }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
-      );
+      const rateLimited = maybeRateLimitedResponse(e);
+      if (rateLimited) return rateLimited;
+      console.error("[http.chat] request failed", e);
+      return internalErrorResponse();
     }
   }),
 });
 
 /**
  * Test helper API: returns generated reply payload synchronously.
- * Part A6: Admin only; 404 in production.
+ * Admin only; disabled by default unless AGENT_TEST_HTTP_ENDPOINTS is truthy.
  */
 http.route({
   path: "/api/test/agent-reply",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    if (process.env.NODE_ENV === "production") {
-      return new Response(JSON.stringify({ error: "Not available in production" }), {
+    if (!isAgentTestEndpointsEnabled()) {
+      return new Response(JSON.stringify({ error: "Not available" }), {
         status: 404,
         headers: { "Content-Type": "application/json" },
       });
@@ -273,22 +314,17 @@ http.route({
         headers: { "Content-Type": "application/json" },
       });
     }
-    const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-    const rateLimitKey = `test-agent-reply:${clientIp}`;
-    const rateLimit = checkRateLimit(rateLimitKey, 30, 60000);
-    if (!rateLimit.allowed) {
+    try {
+      await enforceHttpRateLimit(ctx, {
+        limitName: "httpTestAgentReplyPerIp",
+        key: `test-agent-reply:${getClientIp(request)}`,
+      });
+    } catch (error) {
+      const limited = maybeRateLimitedResponse(error);
+      if (limited) return limited;
       return new Response(
-        JSON.stringify({
-          error: "Rate limit exceeded",
-          retryAfter: rateLimit.retryAfter,
-        }),
-        {
-          status: 429,
-          headers: {
-            "Content-Type": "application/json",
-            "Retry-After": String(rateLimit.retryAfter),
-          },
-        }
+        JSON.stringify({ error: "Rate limiter failed" }),
+        { status: 503, headers: { "Content-Type": "application/json" } },
       );
     }
 
@@ -324,21 +360,19 @@ http.route({
         headers: { "Content-Type": "application/json" },
       });
     } catch (e) {
-      return new Response(
-        JSON.stringify({ error: String(e) }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
-      );
+      console.error("[http.test.agent-reply] request failed", e);
+      return internalErrorResponse();
     }
   }),
 });
 
-/** Column test runner: POST body { userId?, channel? }. Part A6: Admin only; 404 in production. */
+/** Column test runner: POST body { userId?, channel? }. Admin only; disabled by default. */
 http.route({
   path: "/api/test/column",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    if (process.env.NODE_ENV === "production") {
-      return new Response(JSON.stringify({ error: "Not available in production" }), {
+    if (!isAgentTestEndpointsEnabled()) {
+      return new Response(JSON.stringify({ error: "Not available" }), {
         status: 404,
         headers: { "Content-Type": "application/json" },
       });
@@ -363,13 +397,17 @@ http.route({
         headers: { "Content-Type": "application/json" },
       });
     }
-    const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-    const rateLimitKey = `test-column:${clientIp}`;
-    const rateLimit = checkRateLimit(rateLimitKey, 5, 120000); // 5 runs per 2 min
-    if (!rateLimit.allowed) {
+    try {
+      await enforceHttpRateLimit(ctx, {
+        limitName: "httpTestColumnPerIp",
+        key: `test-column:${getClientIp(request)}`,
+      });
+    } catch (error) {
+      const limited = maybeRateLimitedResponse(error);
+      if (limited) return limited;
       return new Response(
-        JSON.stringify({ error: "Rate limit exceeded", retryAfter: rateLimit.retryAfter }),
-        { status: 429, headers: { "Content-Type": "application/json", "Retry-After": String(rateLimit.retryAfter) } }
+        JSON.stringify({ error: "Rate limiter failed" }),
+        { status: 503, headers: { "Content-Type": "application/json" } },
       );
     }
 
@@ -386,10 +424,8 @@ http.route({
         headers: { "Content-Type": "application/json" },
       });
     } catch (e) {
-      return new Response(
-        JSON.stringify({ error: String(e) }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
-      );
+      console.error("[http.test.column] request failed", e);
+      return internalErrorResponse();
     }
   }),
 });

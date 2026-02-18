@@ -15,8 +15,10 @@ import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import {
   createThread,
+  listMessages,
   listUIMessages,
   saveMessage,
+  saveMessages,
   syncStreams,
   vStreamArgs,
 } from "@convex-dev/agent";
@@ -41,8 +43,34 @@ import {
   judgeColumnTest,
 } from "./anan/testing/column_tests";
 import { inferMemoryFactsFromMessage } from "./anan/memory/inference";
+import { getRoutedModel } from "./modelRouter";
+import { getAgentLLMConfigSafe } from "./config";
+import {
+  buildModelFallbackChain,
+  extractRateLimitMessage,
+  isModelFailoverError,
+} from "./modelFailover";
 
-const realEstateAgent = createRealEstateAgent({
+const CHANNEL_VALIDATOR = v.union(
+  v.literal("whatsapp"),
+  v.literal("app"),
+  v.literal("web"),
+);
+
+type AgentChannel = "whatsapp" | "app" | "web";
+
+function isTruthyEnv(value: string | undefined): boolean {
+  if (!value) return false;
+  const normalized = value.trim().toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
+}
+
+function isAgentTestActionsEnabled(): boolean {
+  // Keep action-level test helpers off by default in all deployments.
+  return isTruthyEnv(process.env.AGENT_TEST_ACTIONS);
+}
+
+const realEstateAgentApi = {
   properties: {
     search: api.services.properties.search,
     getRecentSearchCount: internal.services.properties.getRecentSearchCountInternal,
@@ -78,9 +106,69 @@ const realEstateAgent = createRealEstateAgent({
     storeInteraction: internal.services.memory.storeInteractionInternal,
     storeEntityRelation: internal.services.memory.storeEntityRelationInternal,
   },
-});
+};
+
+const agentByModelCache = new Map<
+  string,
+  ReturnType<typeof createRealEstateAgent>
+>();
+
+function getAgentByModel(
+  modelOverride?: string,
+): ReturnType<typeof createRealEstateAgent> {
+  const cacheKey = modelOverride ?? "__default__";
+  const cached = agentByModelCache.get(cacheKey);
+  if (cached) return cached;
+  const created = createRealEstateAgent(realEstateAgentApi, {
+    modelOverride,
+  });
+  agentByModelCache.set(cacheKey, created);
+  return created;
+}
+
+function getRealEstateAgentForTraffic(params: {
+  threadId?: string;
+  userId?: string;
+}): { agent: ReturnType<typeof createRealEstateAgent>; selectedModel?: string } {
+  const routingKey = params.threadId ?? params.userId ?? "default";
+  const selectedModel = getRoutedModel(routingKey);
+  return { agent: getAgentByModel(selectedModel), selectedModel };
+}
+
+function resolveModelFallbackChain(selectedModel?: string): string[] {
+  return buildModelFallbackChain({
+    selectedModel,
+    defaultModel: getAgentLLMConfigSafe()?.model,
+    configuredFallbacksRaw: process.env.AGENT_MODEL_FALLBACKS,
+    demoFallbacksRaw: process.env.AGENT_DEMO_FREE_MODELS,
+  });
+}
+
+async function persistAgentFallbackMessage(
+  ctx: { runMutation: Function },
+  params: {
+    threadId: string;
+    userId?: string;
+    promptMessageId: string;
+    text: string;
+  },
+): Promise<void> {
+  try {
+    await saveMessages(ctx as any, components.agent, {
+      threadId: params.threadId,
+      userId: params.userId,
+      promptMessageId: params.promptMessageId,
+      // Persist as structured content parts to match @convex-dev/agent UI message format.
+      messages: [{ role: "assistant", content: [{ type: "text", text: params.text }] }],
+      failPendingSteps: true,
+    });
+  } catch (error) {
+    console.warn("[agents.actions] failed to persist fallback message:", error);
+  }
+}
 
 const THREAD_TTL_MS = 1000 * 60 * 60 * 24 * 30;
+const WHATSAPP_THREAD_MAX_IDLE_MS = 1000 * 60 * 60 * 24;
 
 type MemoryContextSnapshot = {
   summary?: string;
@@ -126,7 +214,7 @@ IMPORTANT: Use this context. Do NOT ask for information already in memory. If us
 }
 
 async function buildSystemInstructions(ctx: { runQuery: Function }, params: {
-  channel: "whatsapp" | "app" | "web" | undefined;
+  channel: AgentChannel | undefined;
   userId: string | undefined;
   query: string;
 }): Promise<string> {
@@ -171,13 +259,175 @@ async function persistInferredMemoryFacts(
   }
 }
 
+async function getThreadLastActivityAt(
+  ctx: { runQuery: Function; runMutation: Function },
+  threadId: string,
+): Promise<number | undefined> {
+  try {
+    const latestMessagePage = await listMessages(
+      ctx as any,
+      components.agent,
+      {
+        threadId,
+        paginationOpts: { cursor: null, numItems: 1 },
+      },
+    );
+    const latestMessage = latestMessagePage.page[0] as
+      | { _creationTime?: number }
+      | undefined;
+    if (typeof latestMessage?._creationTime === "number") {
+      return latestMessage._creationTime;
+    }
+  } catch (error) {
+    console.warn("[thread] get latest message activity failed:", error);
+  }
+
+  try {
+    const thread = await ctx.runQuery(components.agent.threads.getThread, {
+      threadId,
+    });
+    if (thread && typeof (thread as { _creationTime?: number })._creationTime === "number") {
+      return (thread as { _creationTime: number })._creationTime;
+    }
+  } catch (error) {
+    console.warn("[thread] get thread fallback activity failed:", error);
+  }
+  return undefined;
+}
+
+async function persistWhatsAppRolloverSnapshot(
+  ctx: { runMutation: Function },
+  params: {
+    userId: string;
+    threadId: string;
+    previousThreadId: string;
+    previousLastActivityAt: number;
+  },
+): Promise<void> {
+  try {
+    await ctx.runMutation(internal.services.memory.storeInternal, {
+      userId: params.userId,
+      threadId: params.threadId,
+      memoryType: "fact",
+      key: "last_whatsapp_session_rollover",
+      value: JSON.stringify({
+        previousThreadId: params.previousThreadId,
+        previousLastActivityAt: params.previousLastActivityAt,
+        rolledOverAt: Date.now(),
+        continuity:
+          "Keep minimal user knowledge (preferences, constraints, last search summary) across threads.",
+      }),
+      confidence: 1,
+      source: "system",
+    });
+  } catch (error) {
+    console.warn("[thread] rollover snapshot failed:", error);
+  }
+}
+
+async function resolveReplyThread(
+  ctx: { runQuery: Function; runMutation: Function },
+  params: {
+    userId: string;
+    message: string;
+    channel: AgentChannel;
+  },
+): Promise<{
+  threadId: string;
+  rolledOver: boolean;
+  previousThreadId?: string;
+}> {
+  const createFreshThread = async (): Promise<{
+    threadId: string;
+    rolledOver: boolean;
+    previousThreadId?: string;
+  }> => {
+    const created = await ctx.runMutation(api.agents.actions.createThreadAction, {
+      userId: params.userId,
+      title: params.message.slice(0, 50),
+      channel: params.channel,
+    });
+    return { threadId: created.threadId, rolledOver: false };
+  };
+
+  // First try channel-scoped metadata so WhatsApp does not resume app/web threads.
+  const latestByChannel = await ctx.runQuery(
+    internal.agents.actions.getLatestThreadMetadataByUserChannel,
+    {
+      userId: params.userId,
+      channel: params.channel,
+    },
+  );
+
+  let latestThreadId: string | undefined;
+  let latestThreadCreatedAt: number | undefined;
+  if (latestByChannel?.threadId) {
+    const thread = await ctx.runQuery(components.agent.threads.getThread, {
+      threadId: latestByChannel.threadId,
+    });
+    if (thread) {
+      latestThreadId = thread._id;
+      latestThreadCreatedAt = thread._creationTime;
+    }
+  }
+
+  if (!latestThreadId) {
+    const threads = await ctx.runQuery(components.agent.threads.listThreadsByUserId, {
+      userId: params.userId,
+      paginationOpts: { numItems: 1, cursor: null },
+    });
+    const latestThread = threads.page[0] as
+      | { _id: string; _creationTime?: number }
+      | undefined;
+    if (!latestThread) {
+      return createFreshThread();
+    }
+    latestThreadId = latestThread._id;
+    latestThreadCreatedAt = latestThread._creationTime;
+  }
+
+  if (params.channel !== "whatsapp") {
+    return { threadId: latestThreadId, rolledOver: false };
+  }
+
+  const lastActivityAt =
+    latestByChannel?.lastActivityAt ??
+    (await getThreadLastActivityAt(ctx, latestThreadId)) ??
+    latestThreadCreatedAt ??
+    Date.now();
+  const shouldRollover =
+    Date.now() - lastActivityAt > WHATSAPP_THREAD_MAX_IDLE_MS;
+
+  if (!shouldRollover) {
+    return { threadId: latestThreadId, rolledOver: false };
+  }
+
+  const created = await ctx.runMutation(api.agents.actions.createThreadAction, {
+    userId: params.userId,
+    title: params.message.slice(0, 50),
+    channel: params.channel,
+  });
+  await persistWhatsAppRolloverSnapshot(ctx, {
+    userId: params.userId,
+    threadId: created.threadId,
+    previousThreadId: latestThreadId,
+    previousLastActivityAt: lastActivityAt,
+  });
+
+  return {
+    threadId: created.threadId,
+    rolledOver: true,
+    previousThreadId: latestThreadId,
+  };
+}
+
 async function logMessageSentActivity(
   ctx: {
     runMutation: Function;
   },
   params: {
     userId?: string;
-    channel?: "whatsapp" | "app" | "web";
+    channel?: AgentChannel;
     threadId: string;
   },
 ): Promise<void> {
@@ -208,9 +458,7 @@ export const logAgentTrace = internalMutation({
   args: {
     threadId: v.string(),
     userId: v.optional(v.string()),
-    channel: v.optional(
-      v.union(v.literal("whatsapp"), v.literal("app"), v.literal("web")),
-    ),
+    channel: v.optional(CHANNEL_VALIDATOR),
     userMessage: v.string(),
     toolCalls: v.array(v.object({ name: v.string(), args: v.any() })),
     toolResults: v.array(v.object({ name: v.string(), result: v.any() })),
@@ -231,13 +479,43 @@ export const logAgentTrace = internalMutation({
   },
 });
 
+export const getLatestThreadMetadataByUserChannel = internalQuery({
+  args: {
+    userId: v.string(),
+    channel: CHANNEL_VALIDATOR,
+  },
+  returns: v.union(
+    v.null(),
+    v.object({
+      threadId: v.string(),
+      lastActivityAt: v.number(),
+    }),
+  ),
+  handler: async (ctx, { userId, channel }) => {
+    const rows = await ctx.db
+      .query("threadMetadata")
+      .withIndex("userId_channel_lastActivityAt", (q) =>
+        q.eq("userId", userId).eq("channel", channel),
+      )
+      .order("desc")
+      .take(1);
+    const latest = rows[0];
+    if (!latest) return null;
+    return {
+      threadId: latest.threadId,
+      lastActivityAt: latest.lastActivityAt,
+    };
+  },
+});
+
 export const touchThreadMetadata = internalMutation({
   args: {
     threadId: v.string(),
     userId: v.optional(v.string()),
+    channel: v.optional(CHANNEL_VALIDATOR),
   },
   returns: v.null(),
-  handler: async (ctx, { threadId, userId }) => {
+  handler: async (ctx, { threadId, userId, channel }) => {
     let resolvedUserId = userId;
     if (!resolvedUserId) {
       const thread = await ctx.runQuery(components.agent.threads.getThread, {
@@ -255,6 +533,7 @@ export const touchThreadMetadata = internalMutation({
     if (existing) {
       await ctx.db.patch(existing._id, {
         userId: resolvedUserId,
+        ...(channel ? { channel } : {}),
         lastActivityAt: now,
         expiresAt,
       });
@@ -263,6 +542,7 @@ export const touchThreadMetadata = internalMutation({
     await ctx.db.insert("threadMetadata", {
       threadId,
       userId: resolvedUserId,
+      channel,
       lastActivityAt: now,
       expiresAt,
     });
@@ -307,11 +587,9 @@ export const createThreadAction = mutation({
   args: {
     userId: v.optional(v.string()),
     title: v.optional(v.string()),
+    channel: v.optional(CHANNEL_VALIDATOR),
   },
-  handler: async (ctx, { userId: providedUserId, title }) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/agents/actions.ts:createThreadAction',message:'createThreadAction entry',data:{func:'createThreadAction',hasTitle:Boolean(title),hasProvidedUserId:Boolean(providedUserId)},hypothesisId:'F1',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
+  handler: async (ctx, { userId: providedUserId, title, channel }) => {
     let authUser: Awaited<ReturnType<typeof authComponent.getAuthUser>> | null =
       null;
     try {
@@ -343,6 +621,7 @@ export const createThreadAction = mutation({
     await ctx.runMutation(internal.agents.actions.touchThreadMetadata, {
       threadId,
       userId,
+      channel,
     });
     return { threadId };
   },
@@ -353,14 +632,9 @@ export const sendMessage = mutation({
     threadId: v.string(),
     body: v.string(),
     userId: v.optional(v.string()),
-    channel: v.optional(
-      v.union(v.literal("whatsapp"), v.literal("app"), v.literal("web")),
-    ),
+    channel: v.optional(CHANNEL_VALIDATOR),
   },
   handler: async (ctx, { threadId, body, userId: clientUserId, channel }) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/agents/actions.ts:sendMessage',message:'sendMessage entry',data:{func:'sendMessage',threadId,channel,bodyLength:body.length},hypothesisId:'F2',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     debugLog("actions.sendMessage", "start", {
       threadId,
       channel,
@@ -415,6 +689,7 @@ export const sendMessage = mutation({
     await ctx.runMutation(internal.agents.actions.touchThreadMetadata, {
       threadId,
       userId: thread?.userId ?? undefined,
+      channel,
     });
     await logMessageSentActivity(ctx, {
       userId: thread?.userId ?? undefined,
@@ -433,14 +708,9 @@ export const generateResponse = internalAction({
   args: {
     threadId: v.string(),
     promptMessageId: v.string(),
-    channel: v.optional(
-      v.union(v.literal("whatsapp"), v.literal("app"), v.literal("web")),
-    ),
+    channel: v.optional(CHANNEL_VALIDATOR),
   },
   handler: async (ctx, { threadId, promptMessageId, channel }) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/agents/actions.ts:generateResponse',message:'generateResponse entry',data:{func:'generateResponse',threadId,promptMessageId,channel},hypothesisId:'F3',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     debugLog("actions.generateResponse", "start", {
       threadId,
       promptMessageId,
@@ -464,15 +734,51 @@ export const generateResponse = internalAction({
       );
       await withDebugTiming(
         "actions.generateResponse",
-        "stream_text",
+        "generate_text",
         { threadId, promptMessageId, channel, hasUserId: Boolean(userId) },
-        async () =>
-          realEstateAgent.streamText(
-            ctx,
-            { threadId, userId, channel } as any,
-            { promptMessageId, system: instructions } as any,
-            { saveStreamDeltas: true },
-          ),
+        async () => {
+          const routed = getRealEstateAgentForTraffic({ threadId, userId });
+          const modelsToTry = resolveModelFallbackChain(routed.selectedModel);
+          if (modelsToTry.length === 0) {
+            throw new Error("No agent model available for generateResponse");
+          }
+          let lastError: unknown;
+          for (const model of modelsToTry) {
+            try {
+              await getAgentByModel(model).generateText(
+                ctx,
+                { threadId, userId, channel } as any,
+                { promptMessageId, system: instructions } as any,
+              );
+              return;
+            } catch (error) {
+              lastError = error;
+              if (!isModelFailoverError(error)) throw error;
+              debugLog("actions.generateResponse", "model_failover", {
+                threadId,
+                selectedModel: model ?? "default",
+                fallbackModel:
+                  modelsToTry[modelsToTry.indexOf(model) + 1] ?? "none",
+              });
+            }
+          }
+          if (lastError) {
+            if (isModelFailoverError(lastError)) {
+              debugLog("actions.generateResponse", "rate_limited_drop", {
+                threadId,
+                promptMessageId,
+              });
+              await persistAgentFallbackMessage(ctx, {
+                threadId,
+                userId,
+                promptMessageId,
+                text: AGENT_FALLBACK_MESSAGE,
+              });
+              return;
+            }
+            throw lastError;
+          }
+        },
       );
       debugLog("actions.generateResponse", "done", {
         threadId,
@@ -480,13 +786,35 @@ export const generateResponse = internalAction({
         channel,
       });
     } catch (err) {
-      console.error("generateResponse error:", err);
+      if (isModelFailoverError(err)) {
+        debugLog("actions.generateResponse", "rate_limited_error", {
+          threadId,
+          promptMessageId,
+          channel,
+          message: extractRateLimitMessage(err),
+        });
+      } else {
+        console.error("generateResponse error:", err);
+      }
       debugLog("actions.generateResponse", "error", {
         threadId,
         promptMessageId,
         channel,
         error: err instanceof Error ? err.message : "unknown_error",
       });
+      if (isModelFailoverError(err)) {
+        debugLog("actions.generateResponse", "rate_limited_suppressed", {
+          threadId,
+          promptMessageId,
+        });
+        await persistAgentFallbackMessage(ctx, {
+          threadId,
+          userId: undefined,
+          promptMessageId,
+          text: AGENT_FALLBACK_MESSAGE,
+        });
+        return;
+      }
       throw err;
     }
   },
@@ -499,9 +827,7 @@ export const generateReplyAndReturnText = internalAction({
   args: {
     userId: v.string(),
     message: v.string(),
-    channel: v.optional(
-      v.union(v.literal("whatsapp"), v.literal("app"), v.literal("web")),
-    ),
+    channel: v.optional(CHANNEL_VALIDATOR),
   },
   handler: async (
     ctx,
@@ -512,32 +838,29 @@ export const generateReplyAndReturnText = internalAction({
     imageUrls?: string[];
     offerBlocks?: OfferBlock[];
     threadId: string;
-  }> => {
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/agents/actions.ts:generateReplyAndReturnText',message:'generateReplyAndReturnText entry',data:{func:'generateReplyAndReturnText',userId,messageLength:message.length,channel:channelArg},hypothesisId:'F12',timestamp:Date.now()})}).catch(()=>{});
-    fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/agents/actions.ts:generateReplyAndReturnText',message:'agent message received',data:{messagePreview:String(message).slice(0,80),messageLength:message.length},hypothesisId:'agent_msg',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
+    }> => {
     debugLog("actions.generateReplyAndReturnText", "start", {
       userId,
       channel: channelArg ?? "app",
       messageLength: message.length,
     });
+    let threadId = "";
+    let promptMessageId: string | undefined;
     try {
-      const threads = await ctx.runQuery(api.agents.actions.listThreads, {
+      const channel = channelArg ?? "app";
+      const threadSelection = await resolveReplyThread(ctx, {
         userId,
-        paginationOpts: { numItems: 1, cursor: null },
+        message,
+        channel,
       });
-      let threadId: string;
-      if (threads.page.length > 0) {
-        threadId = threads.page[0]._id;
-      } else {
-        const res = await ctx.runMutation(
-          api.agents.actions.createThreadAction,
-          {
-            userId,
-          },
-        );
-        threadId = res.threadId;
+      threadId = threadSelection.threadId;
+      if (threadSelection.rolledOver) {
+        debugLog("actions.generateReplyAndReturnText", "thread_rollover_24h", {
+          userId,
+          previousThreadId: threadSelection.previousThreadId,
+          threadId,
+          channel,
+        });
       }
 
       const { messageId } = await saveMessage(ctx, components.agent, {
@@ -545,13 +868,15 @@ export const generateReplyAndReturnText = internalAction({
         userId,
         prompt: message,
       });
+      promptMessageId = messageId;
       await ctx.runMutation(internal.agents.actions.touchThreadMetadata, {
         threadId,
         userId,
+        channel,
       });
       await logMessageSentActivity(ctx, {
         userId,
-        channel: channelArg,
+        channel,
         threadId,
       });
       await persistInferredMemoryFacts(ctx, {
@@ -560,21 +885,42 @@ export const generateReplyAndReturnText = internalAction({
         message,
       });
       const finalInstructions = await buildSystemInstructions(ctx, {
-        channel: channelArg,
+        channel,
         userId,
         query: message,
       });
-      const channel = channelArg ?? "app";
       const result = await withDebugTiming(
         "actions.generateReplyAndReturnText",
         "generate_text",
         { threadId, userId, channel },
-        async () =>
-          realEstateAgent.generateText(
-            ctx,
-            { threadId, userId, channel } as any,
-            { promptMessageId: messageId, system: finalInstructions } as any,
-          ),
+        async () => {
+          const routed = getRealEstateAgentForTraffic({ threadId, userId });
+          const modelsToTry = resolveModelFallbackChain(routed.selectedModel);
+          if (modelsToTry.length === 0) {
+            throw new Error("No agent model available for generateReplyAndReturnText");
+          }
+          let lastError: unknown;
+          for (const model of modelsToTry) {
+            try {
+              return await getAgentByModel(model).generateText(
+                ctx,
+                { threadId, userId, channel } as any,
+                { promptMessageId: messageId, system: finalInstructions } as any,
+              );
+            } catch (error) {
+              lastError = error;
+              if (!isModelFailoverError(error)) throw error;
+              debugLog("actions.generateReplyAndReturnText", "model_failover", {
+                threadId,
+                selectedModel: model ?? "default",
+                fallbackModel:
+                  modelsToTry[modelsToTry.indexOf(model) + 1] ?? "none",
+              });
+            }
+          }
+          if (lastError) throw lastError;
+          throw new Error("No agent model attempts executed");
+        },
       );
       const text = result.text;
       const steps = (result as { steps?: unknown[] }).steps;
@@ -677,13 +1023,30 @@ export const generateReplyAndReturnText = internalAction({
         threadId,
       };
     } catch (err) {
-      console.error("generateReplyAndReturnText error:", err);
+      if (isModelFailoverError(err)) {
+        debugLog("actions.generateReplyAndReturnText", "rate_limited_error", {
+          userId,
+          channel: channelArg ?? "app",
+          threadId,
+          message: extractRateLimitMessage(err),
+        });
+      } else {
+        console.error("generateReplyAndReturnText error:", err);
+      }
       debugLog("actions.generateReplyAndReturnText", "error", {
         userId,
         channel: channelArg ?? "app",
         error: err instanceof Error ? err.message : "unknown_error",
       });
-      return { text: AGENT_FALLBACK_MESSAGE, threadId: "" };
+      if (threadId && promptMessageId) {
+        await persistAgentFallbackMessage(ctx, {
+          threadId,
+          userId,
+          promptMessageId,
+          text: AGENT_FALLBACK_MESSAGE,
+        });
+      }
+      return { text: AGENT_FALLBACK_MESSAGE, threadId };
     }
   },
 });
@@ -697,9 +1060,6 @@ export const getThreadMessages = query({
     allowAdmin: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/agents/actions.ts:getThreadMessages',message:'getThreadMessages entry',data:{func:'getThreadMessages',threadId:args.threadId,allowAdmin:args.allowAdmin},hypothesisId:'F11',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     const thread = await ctx.runQuery(components.agent.threads.getThread, {
       threadId: args.threadId,
     });
@@ -746,12 +1106,9 @@ export const testAgent = action({
     ctx,
     { message, userId = "test-user" },
   ): Promise<{ question: string; reply: string; threadId: string }> => {
-    if (process.env.NODE_ENV === "production") {
-      throw new Error("Not available in production");
+    if (!isAgentTestActionsEnabled()) {
+      throw new Error("Not available unless AGENT_TEST_ACTIONS is enabled");
     }
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/agents/actions.ts:testAgent',message:'testAgent entry',data:{func:'testAgent',messageLen:message.length,userId},hypothesisId:'F13',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     // No requireAdmin: testAgent is invoked via convex run (smoke test, test:agent:run)
     // which has no auth context. The /api/test/agent-reply HTTP route uses
     // generateReplyAndReturnText directly and enforces admin there.
@@ -788,9 +1145,6 @@ export const listThreads = query({
     paginationOpts: paginationOptsValidator,
   },
   handler: async (ctx, { userId: clientUserId, paginationOpts }) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/agents/actions.ts:listThreads',message:'listThreads entry',data:{func:'listThreads',hasPaginationOpts:Boolean(paginationOpts)},hypothesisId:'F10',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     const authUserId = await optionalAuth(ctx);
     const userId =
       authUserId ??
@@ -824,9 +1178,6 @@ export const searchThreads = query({
 export const deleteThread = mutation({
   args: { threadId: v.string(), userId: v.optional(v.string()) },
   handler: async (ctx, { threadId, userId: clientUserId }) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7245/ingest/78cd20fc-b6ba-43f9-ac6b-c2cb1c79c3e3',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'convex/agents/actions.ts:deleteThread',message:'deleteThread entry',data:{func:'deleteThread',threadId},hypothesisId:'F14',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     let resolvedUserId: string | undefined;
     try {
       const authUser = await authComponent.getAuthUser(ctx);
@@ -885,9 +1236,7 @@ export const runColumnTest = internalAction({
   args: {
     testCaseId: v.string(),
     userId: v.string(),
-    channel: v.optional(
-      v.union(v.literal("whatsapp"), v.literal("app"), v.literal("web")),
-    ),
+    channel: v.optional(CHANNEL_VALIDATOR),
   },
   handler: async (
     ctx,
@@ -958,9 +1307,7 @@ export const runColumnTest = internalAction({
 export const runAllColumnTests = internalAction({
   args: {
     userId: v.string(),
-    channel: v.optional(
-      v.union(v.literal("whatsapp"), v.literal("app"), v.literal("web")),
-    ),
+    channel: v.optional(CHANNEL_VALIDATOR),
     testCaseIds: v.optional(v.array(v.string())),
   },
   handler: async (

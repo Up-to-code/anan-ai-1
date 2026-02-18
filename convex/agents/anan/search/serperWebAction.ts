@@ -5,6 +5,7 @@
 import { internalAction } from "../../../_generated/server";
 import { v } from "convex/values";
 import { sanitizeWebText } from "../../_lib/sanitize";
+import { fetchJsonWithRetry } from "../../_lib/http";
 import { detectPreferredLanguage } from "../../../lib/language";
 
 function normalizeUrl(url: string): string {
@@ -46,6 +47,25 @@ function detectQueryIntent(query: string): "legal" | "market" | "general" {
   return "general";
 }
 
+function readPositiveInt(raw: string | undefined, fallback: number): number {
+  if (!raw) return fallback;
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+const SERPER_WEB_ACTION_TIMEOUT_MS = readPositiveInt(
+  process.env.SERPER_WEB_ACTION_TIMEOUT_MS,
+  7000,
+);
+const SERPER_WEB_ACTION_MAX_RETRIES = readPositiveInt(
+  process.env.SERPER_WEB_ACTION_MAX_RETRIES,
+  2,
+);
+const SERPER_WEB_ACTION_QUERY_PARALLELISM = readPositiveInt(
+  process.env.SERPER_WEB_ACTION_QUERY_PARALLELISM,
+  2,
+);
+
 function buildDeepQueries(query: string): string[] {
   const intent = detectQueryIntent(query);
   const base = query.trim();
@@ -76,25 +96,27 @@ async function runSerper(
   num: number,
   localeParams: { gl: string; hl: string }
 ): Promise<{ title: string; url: string; snippet: string }[]> {
-  const res = await fetch("https://google.serper.dev/search", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-API-KEY": apiKey,
-    },
-    body: JSON.stringify({
-      q: query,
-      num: Math.min(num, 10),
-      ...localeParams,
-    }),
-  });
-  if (!res?.ok) {
-    const text = res ? await res.text() : "no response";
-    throw new Error(`Web search failed: ${res?.status ?? "unknown"} ${text}`);
-  }
-  const data = (await res.json()) as {
+  const data = await fetchJsonWithRetry<{
     organic?: Array<{ title?: string; link?: string; snippet?: string }>;
-  };
+  }>(
+    "https://google.serper.dev/search",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-KEY": apiKey,
+      },
+      body: JSON.stringify({
+        q: query,
+        num: Math.min(num, 10),
+        ...localeParams,
+      }),
+    },
+    {
+      timeoutMs: SERPER_WEB_ACTION_TIMEOUT_MS,
+      maxRetries: SERPER_WEB_ACTION_MAX_RETRIES,
+    },
+  );
   return (data.organic ?? []).map((o) => ({
     title: sanitizeWebText(o.title),
     url: o.link ?? "",
@@ -132,9 +154,21 @@ export const runSerperWebSearch = internalAction({
       if (deep) {
         const deepQueries = buildDeepQueries(query);
         queriesUsed = deepQueries;
-        const batches = await Promise.all(
-          deepQueries.map((q) => runSerper(apiKey, q, perQueryNum, localeParams)),
-        );
+        const batches: Array<{ title: string; url: string; snippet: string }[]> = [];
+        for (
+          let i = 0;
+          i < deepQueries.length;
+          i += SERPER_WEB_ACTION_QUERY_PARALLELISM
+        ) {
+          const queryBatch = deepQueries.slice(
+            i,
+            i + SERPER_WEB_ACTION_QUERY_PARALLELISM,
+          );
+          const resultBatch = await Promise.all(
+            queryBatch.map((q) => runSerper(apiKey, q, perQueryNum, localeParams)),
+          );
+          batches.push(...resultBatch);
+        }
         const byUrl = new Map<string, { title: string; url: string; snippet: string }>();
         for (const batch of batches) {
           for (const r of batch) {
