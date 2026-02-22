@@ -23,6 +23,8 @@ import type {
   SerperResult,
   StagehandState,
 } from "./types";
+import { type GenericActionCtx } from "convex/server";
+import { type DataModel } from "../../../_generated/dataModel";
 
 export type { SearchAgentResult } from "./types";
 export { buildKnowledgePayloadFromDbResults } from "./pipeline";
@@ -43,7 +45,7 @@ function normalizeUrlKey(url: string | undefined): string | null {
  * Fetch full property details (including Property Information and imageUrls) from a detail page URL.
  */
 export async function fetchPropertyDetailsByUrl(
-  ctx: unknown,
+  ctx: GenericActionCtx<DataModel>,
   propertyUrl: string
 ): Promise<{
   title?: string;
@@ -72,7 +74,7 @@ export async function fetchPropertyDetailsByUrl(
  * Store knowledge research record.
  */
 export async function storeKnowledgeResearch(
-  ctx: unknown,
+  ctx: GenericActionCtx<DataModel>,
   appApi: SearchAgentApi,
   payload: KnowledgePayload
 ): Promise<void> {
@@ -99,7 +101,7 @@ export async function storeKnowledgeResearch(
  * Main search agent entry point.
  */
 export async function runSearchAgent(
-  ctx: unknown,
+  ctx: GenericActionCtx<DataModel>,
   params: {
     query: string;
     userId: string;

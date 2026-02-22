@@ -7,7 +7,10 @@ import { evaluateCoverage } from "./coverageJudge";
 import { buildFailureResult, buildSuccessResult } from "./resultAssembler";
 import { normalizeUrlSet, runSecondPassIfNeeded, runStage } from "./orchestratorStages";
 import type { OrchestratedSearchResult, SearchOrchestratorInput, SearchStageTrace } from "./orchestrationTypes";
-export async function runSearchOrchestrator(ctx: unknown, params: SearchOrchestratorInput): Promise<OrchestratedSearchResult> {
+import { type GenericActionCtx } from "convex/server";
+import { type DataModel } from "../../../_generated/dataModel";
+
+export async function runSearchOrchestrator(ctx: GenericActionCtx<DataModel>, params: SearchOrchestratorInput): Promise<OrchestratedSearchResult> {
   const startedAt = Date.now();
   const trace: SearchStageTrace[] = [];
   const plan = await runStage(trace, "query_plan", () =>

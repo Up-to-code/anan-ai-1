@@ -12,6 +12,7 @@ export type {
   UserResult,
   StagehandState,
   SearchAgentResult,
+  GenericPortalConfig,
 } from "../results/search";
 
 export type {

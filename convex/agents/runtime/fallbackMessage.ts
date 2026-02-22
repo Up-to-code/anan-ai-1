@@ -1,8 +1,18 @@
 import { saveMessages } from "@convex-dev/agent";
 import { components } from "../../_generated/api";
 
-export const AGENT_FALLBACK_MESSAGE =
-  "عذراً، واجهت مشكلة تقنية. نطور الخدمة ونصلح الأمور. جرّب مرة ثانية. 🙏 / Sorry, I ran into an issue. We're improving things for you. Please try again. 🙏";
+export const AGENT_FALLBACK_MESSAGE_AR =
+  "عذراً، واجهت مشكلة تقنية. نطور الخدمة ونصلح الأمور. جرّب مرة ثانية. 🙏";
+
+export const AGENT_FALLBACK_MESSAGE_EN =
+  "Sorry, I ran into an issue. We're improving things for you. Please try again. 🙏";
+
+/** @deprecated Use getLocalizedFallbackMessage() instead for language-aware messages */
+export const AGENT_FALLBACK_MESSAGE = AGENT_FALLBACK_MESSAGE_AR;
+
+export function getLocalizedFallbackMessage(preferredLanguage?: "ar" | "en"): string {
+  return preferredLanguage === "en" ? AGENT_FALLBACK_MESSAGE_EN : AGENT_FALLBACK_MESSAGE_AR;
+}
 
 export async function persistAgentFallbackMessage(
   ctx: { runMutation: Function },

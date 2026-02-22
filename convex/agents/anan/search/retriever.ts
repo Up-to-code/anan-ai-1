@@ -8,8 +8,11 @@ function normalizeUrl(url: string | undefined): string | null {
   return url.trim().replace(/\/+$/, "").toLowerCase() || null;
 }
 
+import { type GenericActionCtx } from "convex/server";
+import { type DataModel } from "../../../_generated/dataModel";
+
 export async function retrievePortalFindings(params: {
-  ctx: unknown;
+  ctx: GenericActionCtx<DataModel>;
   plan: SearchExecutionPlan;
   excludedPropertyUrls: Set<string>;
 }): Promise<{ portalFindings: PropertyFinding[]; portalSources: SerperResult[] }> {

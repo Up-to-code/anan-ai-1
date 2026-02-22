@@ -22,6 +22,7 @@ import { userProfileReturnValidator } from "../domain/user";
 /** List all user profiles. Admin only. */
 export const list = query({
   args: { paginationOpts: paginationOptsValidator },
+  returns: v.any(), // Convex paginated result generic
   handler: async (ctx, { paginationOpts }) => {
     await requireAdmin(ctx);
     return ctx.db.query("userProfiles").order("desc").paginate(paginationOpts);

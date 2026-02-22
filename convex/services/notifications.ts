@@ -49,6 +49,7 @@ export const createSalesNotification = internalMutation({
     status: v.optional(statusValidator),
     metadata: v.optional(v.any()),
   },
+  returns: v.id("notifications"),
   handler: async (ctx, args) => {
     return ctx.db.insert("notifications", {
       userId: args.userId,

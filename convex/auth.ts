@@ -63,6 +63,7 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
         verifyOTP: async ({ phoneNumber, code }) => {
           const runCtx = requireRunMutationCtx(ctx);
           return await runCtx.runMutation(
+            // @ts-ignore: Type instantiation is excessively deep and possibly infinite
             internal.features.auth.actions.consumeSessionToken,
             {
               phoneNumber,
@@ -102,6 +103,7 @@ export const isUserAdmin = query({
   args: { userId: v.string() },
   returns: v.boolean(),
   handler: async (ctx, { userId }) => {
+
     const legacyAdmin = await ctx.db
       .query("adminUsers")
       .withIndex("userId", (q) => q.eq("userId", userId))

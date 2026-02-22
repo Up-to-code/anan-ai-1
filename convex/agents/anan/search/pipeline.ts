@@ -30,6 +30,8 @@ import type {
   StagehandState,
   UserResult,
 } from "./types";
+import { type GenericActionCtx } from "convex/server";
+import { type DataModel } from "../../../_generated/dataModel";
 
 function enrichFindingsWithImagePool(
   findings: PropertyFinding[],
@@ -107,7 +109,7 @@ type CachedPropertyDetails = {
 };
 
 async function getPropertyDetailsWithCache(
-  ctx: unknown,
+  ctx: GenericActionCtx<DataModel>,
   propertyUrl: string,
   cardRank: number,
   state: StagehandState,
@@ -196,7 +198,7 @@ function toFallbackFinding(candidate: FindingCandidate): PropertyFinding {
 }
 
 export async function buildFindings(
-  ctx: unknown,
+  ctx: GenericActionCtx<DataModel>,
   sources: SerperResult[],
   extraImagePool?: string[],
   options?: {
@@ -339,11 +341,11 @@ export async function buildFindings(
       batch.map((candidate) =>
         candidate.propertyUrl
           ? getPropertyDetailsWithCache(
-              ctx,
-              candidate.propertyUrl,
-              candidate.cardRank,
-              state,
-            )
+            ctx,
+            candidate.propertyUrl,
+            candidate.cardRank,
+            state,
+          )
           : Promise.resolve(emptyDetails),
       ),
     );

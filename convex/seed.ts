@@ -27,6 +27,7 @@ export const importFromJson = mutation({
   args: {
     properties: v.array(propertyImportValidator),
   },
+  returns: v.object({ inserted: v.number() }),
   handler: async (ctx, { properties: props }) => {
     let inserted = 0;
     for (const p of props) {
@@ -50,6 +51,7 @@ export const importFromJson = mutation({
  */
 export const updatePrompts = mutation({
   args: {},
+  returns: v.object({ updated: v.number() }),
   handler: async (ctx) => {
     const prompts = [
       { key: "system", value: systemPrompt },
@@ -78,6 +80,7 @@ export const updatePrompts = mutation({
  */
 export const addAdmin = internalMutation({
   args: { userId: v.string() },
+  returns: v.id("adminUsers"),
   handler: async (ctx, { userId }) => {
     const existing = await ctx.db
       .query("adminUsers")
@@ -100,6 +103,7 @@ export const addAdmin = internalMutation({
  */
 export const addAdminByEmail = mutation({
   args: { email: v.string() },
+  returns: v.id("adminUsers"),
   handler: async (ctx, { email }) => {
     const user = await ctx.runQuery(components.betterAuth.adapter.findOne, {
       model: "user",
@@ -127,6 +131,7 @@ export const addAdminByEmail = mutation({
  */
 export const migrateAdminUsersToRoles = internalMutation({
   args: {},
+  returns: v.object({ migrated: v.number(), inserted: v.number() }),
   handler: async (ctx) => {
     const admins = await ctx.db.query("adminUsers").collect();
     let inserted = 0;
@@ -159,6 +164,7 @@ export const migrateAdminUsersToRoles = internalMutation({
  */
 export const run = mutation({
   args: {},
+  returns: v.any(),
   handler: async (ctx) => {
     const existingBanks = await ctx.db.query("banks").take(1);
     const existingPrompts = await ctx.db.query("prompts").take(1);

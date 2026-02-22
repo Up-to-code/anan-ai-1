@@ -1,0 +1,58 @@
+### Implementation
+
+```typescript
+import { defineSchema, defineTable } from "convex/server";
+import { v } from "convex/values";
+
+export default defineSchema({
+  channels: defineTable({
+    name: v.string(),
+  }),
+
+  users: defineTable({
+    name: v.string(),
+  }),
+
+  messages: defineTable({
+    channelId: v.id("channels"),
+    authorId: v.optional(v.id("users")),
+    content: v.string(),
+  }).index("by_channel", ["channelId"]),
+});
+```
+
+#### convex/tsconfig.json
+```typescript
+{
+  /* This TypeScript project config describes the environment that
+   * Convex functions run in and is used to typecheck them.
+   * You can modify it, but some settings required to use Convex.
+   */
+  "compilerOptions": {
+    /* These settings are not required by Convex and can be modified. */
+    "allowJs": true,
+    "strict": true,
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "skipLibCheck": true,
+    "allowSyntheticDefaultImports": true,
+
+    /* These compiler options are required by Convex */
+    "target": "ESNext",
+    "lib": ["ES2021", "dom"],
+    "forceConsistentCasingInFileNames": true,
+    "module": "ESNext",
+    "isolatedModules": true,
+    "noEmit": true
+  },
+  "include": ["./**/*"],
+  "exclude": ["./_generated"]
+}
+```
+
+#### src/App.tsx
+```typescript
+export default function App() {
+  return <div>Hello World</div>;
+}
+```

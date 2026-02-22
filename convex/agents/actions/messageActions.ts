@@ -16,6 +16,7 @@ export const sendMessage = mutation({
     userId: v.optional(v.string()),
     channel: v.optional(CHANNEL_VALIDATOR),
   },
+  returns: v.null(),
   handler: async (ctx, { threadId, body, userId: clientUserId, channel }) => {
     debugLog("actions.sendMessage", "start", { threadId, channel, bodyLength: body.length });
     let authUserId: string | undefined;
@@ -58,5 +59,6 @@ export const sendMessage = mutation({
       scheduled: true,
       hasUserId: Boolean(thread?.userId),
     });
+    return null;
   },
 });

@@ -11,6 +11,7 @@ import {
   isModelFailoverError,
   isRateLimitedError,
 } from "../modelFailover";
+import { runWithModelFailover } from "../runtime/modelFailoverRunner";
 import { CHANNEL_VALIDATOR } from "./shared";
 import { buildSystemInstructions } from "../runtime/instructionBuilder";
 import { getPromptPolicyMetadata } from "../runtime/instructionBuilder";
@@ -19,17 +20,13 @@ import {
   getRealEstateAgentForTraffic,
   resolveModelFallbackChain,
 } from "../runtime/modelChain";
-import {
-  getFailoverDelayMs,
-  getModelCooldownUntil,
-  markModelRateLimited,
-  sleepMs,
-} from "../runtime/rateLimitCooldown";
+import { sleepMs } from "../runtime/rateLimitCooldown";
 import {
   AGENT_FALLBACK_MESSAGE,
   persistAgentFallbackMessage,
 } from "../runtime/fallbackMessage";
 import { resolveReplyThread } from "../runtime/threadResolver";
+import { getWhatsAppLeadText } from "../runtime/channelMessages";
 import { logMessageSentActivity } from "../runtime/activityLogger";
 import { persistInferredMemoryFacts } from "../runtime/memoryPersistence";
 import {
@@ -135,44 +132,21 @@ export const generateResponse = internalAction({
         async () => {
           const routed = getRealEstateAgentForTraffic({ threadId, userId });
           const modelsToTry = resolveModelFallbackChain(routed.selectedModel);
-          if (modelsToTry.length === 0) {
-            throw new Error("No agent model available for generateResponse");
-          }
-          let lastError: unknown;
-          for (let i = 0; i < modelsToTry.length; i += 1) {
-            const model = modelsToTry[i]!;
-            const cooldownUntil = getModelCooldownUntil(model);
-            if (cooldownUntil) {
-              debugLog("actions.generateResponse", "model_skipped_cooldown", {
-                threadId,
-                selectedModel: model,
-                cooldownUntil,
-              });
-              continue;
-            }
-            try {
-              await getAgentByModel(model).generateText(
-                ctx,
-                { threadId, userId, channel } as any,
-                { promptMessageId, system: instructions } as any,
-              );
-              return;
-            } catch (error) {
-              lastError = error;
-              if (isRateLimitedError(error)) markModelRateLimited(model, error);
-              if (!isModelFailoverError(error)) throw error;
-              debugLog("actions.generateResponse", "model_failover", {
-                threadId,
-                selectedModel: model ?? "default",
-                fallbackModel: modelsToTry[i + 1] ?? "none",
-              });
-              if (i < modelsToTry.length - 1) {
-                await sleepMs(getFailoverDelayMs(error, i));
-              }
-            }
-          }
-          if (lastError) {
-            if (isModelFailoverError(lastError)) {
+          try {
+            await runWithModelFailover({
+              models: modelsToTry,
+              scope: "actions.generateResponse",
+              threadId,
+              runModel: async (model) => {
+                await getAgentByModel(model).generateText(
+                  ctx,
+                  { threadId, userId, channel } as any,
+                  { promptMessageId, system: instructions } as any,
+                );
+              },
+            });
+          } catch (failoverErr) {
+            if (isModelFailoverError(failoverErr)) {
               debugLog("actions.generateResponse", "rate_limited_drop", { threadId, promptMessageId });
               await persistAgentFallbackMessage(ctx, {
                 threadId,
@@ -182,7 +156,7 @@ export const generateResponse = internalAction({
               });
               return;
             }
-            throw lastError;
+            throw failoverErr;
           }
         },
       );
@@ -301,43 +275,17 @@ export const generateReplyAndReturnText = internalAction({
             async () => {
               const routed = getRealEstateAgentForTraffic({ threadId, userId });
               const modelsToTry = resolveModelFallbackChain(routed.selectedModel);
-              if (modelsToTry.length === 0) {
-                throw new Error("No agent model available for generateReplyAndReturnText");
-              }
-              let lastError: unknown;
-              for (let i = 0; i < modelsToTry.length; i += 1) {
-                const model = modelsToTry[i]!;
-                const cooldownUntil = getModelCooldownUntil(model);
-                if (cooldownUntil) {
-                  debugLog("actions.generateReplyAndReturnText", "model_skipped_cooldown", {
-                    threadId,
-                    selectedModel: model,
-                    cooldownUntil,
-                  });
-                  continue;
-                }
-                try {
-                  return await getAgentByModel(model).generateText(
+              return await runWithModelFailover({
+                models: modelsToTry,
+                scope: "actions.generateReplyAndReturnText",
+                threadId,
+                runModel: (model) =>
+                  getAgentByModel(model).generateText(
                     ctx,
                     { threadId, userId, channel } as any,
                     { promptMessageId: messageId, system: finalInstructions } as any,
-                  );
-                } catch (error) {
-                  lastError = error;
-                  if (isRateLimitedError(error)) markModelRateLimited(model, error);
-                  if (!isModelFailoverError(error)) throw error;
-                  debugLog("actions.generateReplyAndReturnText", "model_failover", {
-                    threadId,
-                    selectedModel: model ?? "default",
-                    fallbackModel: modelsToTry[i + 1] ?? "none",
-                  });
-                  if (i < modelsToTry.length - 1) {
-                    await sleepMs(getFailoverDelayMs(error, i));
-                  }
-                }
-              }
-              if (lastError) throw lastError;
-              throw new Error("No agent model attempts executed");
+                  ),
+              });
             },
           );
           break;
@@ -386,11 +334,11 @@ export const generateReplyAndReturnText = internalAction({
       const offerFormatted =
         channel === "whatsapp" && (formatted.offerBlocks?.length ?? 0) > 0
           ? runOfferFormatterAgent({
-              offerBlocks: formatted.offerBlocks ?? [],
-              preferredLanguage,
-              query: message,
-              maxImagesPerOffer: 5,
-            })
+            offerBlocks: formatted.offerBlocks ?? [],
+            preferredLanguage,
+            query: message,
+            maxImagesPerOffer: 5,
+          })
           : undefined;
       const finalOfferBlocks = offerFormatted?.offerBlocks ?? formatted.offerBlocks;
       const effectiveResponseMode =
@@ -402,13 +350,10 @@ export const generateReplyAndReturnText = internalAction({
       if (channel === "whatsapp" && (finalOfferBlocks?.length ?? 0) > 0) {
         guardedText = offerFormatted?.leadText
           ? offerFormatted.leadText
-          : preferredLanguage === "ar"
-            ? isFollowUpRefresh || usedSearchContext
-              ? "أبشر، هذه خيارات إضافية حسب طلبك. شوف الصور والتفاصيل واختار الأنسب:"
-              : "أبشر، لقيت لك خيارات مناسبة ومفصلة. شوف العروض والصور واختر الأنسب لك:"
-            : isFollowUpRefresh || usedSearchContext
-              ? "Great, here are additional options based on your last search. Check the offers and images below:"
-              : "I got this for you with specific matching options and details. Check the offers and images below:";
+          : getWhatsAppLeadText({
+            preferredLanguage,
+            isFollowUp: isFollowUpRefresh || usedSearchContext,
+          });
       }
       debugLog("actions.generateReplyAndReturnText", "done", {
         threadId,

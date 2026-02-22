@@ -881,10 +881,10 @@ export const getCachedSearchResults = query({
     const tierCutoffs = maxAgeMs
       ? [now - maxAgeMs]
       : [
-          now - SEARCH_CACHE_TTL_HOT_MS,
-          now - SEARCH_CACHE_TTL_WARM_MS,
-          now - SEARCH_CACHE_TTL_COLD_MS,
-        ];
+        now - SEARCH_CACHE_TTL_HOT_MS,
+        now - SEARCH_CACHE_TTL_WARM_MS,
+        now - SEARCH_CACHE_TTL_COLD_MS,
+      ];
     const minFindings = Math.min(limit, 3);
     const queryNorm = normalizeQueryForCache(query);
     const queryTokens = tokenizeForCache(query);
@@ -1058,16 +1058,16 @@ export const getLastSearchFindings = query({
     let record: {
       query: string;
       createdAt: number;
-        propertyFindings: Array<{
-          title: string;
-          propertyUrl?: string;
-          sourceUrl: string;
-          sourceTitle?: string;
-          detailSourceUrl?: string;
-          detailFetched?: boolean;
-          description?: string;
-          priceHint?: string;
-          locationHint?: string;
+      propertyFindings: Array<{
+        title: string;
+        propertyUrl?: string;
+        sourceUrl: string;
+        sourceTitle?: string;
+        detailSourceUrl?: string;
+        detailFetched?: boolean;
+        description?: string;
+        priceHint?: string;
+        locationHint?: string;
         bathrooms?: string;
         area?: string;
         features?: string[];
@@ -1128,10 +1128,10 @@ export const backfillSearchText = internalMutation({
     remaining: v.number(),
   }),
   handler: async (ctx, { batchSize = 100 }) => {
-    // Find properties without searchText
+    // Find properties without searchText using the new explicit index
     const properties = await ctx.db
       .query("properties")
-      .filter((q) => q.eq(q.field("searchText"), undefined))
+      .withIndex("searchText", (q) => q.eq("searchText", undefined))
       .take(batchSize);
 
     let updated = 0;
@@ -1153,7 +1153,7 @@ export const backfillSearchText = internalMutation({
     // Count remaining
     const remaining = await ctx.db
       .query("properties")
-      .filter((q) => q.eq(q.field("searchText"), undefined))
+      .withIndex("searchText", (q) => q.eq("searchText", undefined))
       .collect();
 
     return { updated, remaining: remaining.length };

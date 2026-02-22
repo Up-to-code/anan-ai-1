@@ -44,6 +44,8 @@ export default defineSchema({
     .index("partnerId", ["partnerId"])
     .index("bankId", ["bankId"])
     .index("status", ["status"])
+    // Added index to allow fast lookups for backfilling missing search text (eliminating q.filter)
+    .index("searchText", ["searchText"])
     .searchIndex("search_body", { searchField: "description" })
     .searchIndex("search_full", { searchField: "searchText" }),
 
@@ -860,25 +862,34 @@ export default defineSchema({
   agentMemoryEmbeddings: defineTable({
     memoryId: v.id("agentMemory"),
     embedding: v.array(v.float64()),
-  }),
+  })
+    .vectorIndex("by_embedding", {
+      vectorField: "embedding",
+      dimensions: 1536, // Assuming OpenAI ada-002
+      filterFields: ["memoryId"],
+    })
+    // Added index to eliminate the table scan on getMemoriesByEmbeddingIds
+    .index("by_memoryId", ["memoryId"]),
 
   /** Entity relationships for knowledge graph traversal. */
   entityRelations: defineTable({
-    fromType: v.string(),
-    fromId: v.string(),
-    relationType: v.string(),
-    toType: v.string(),
-    toId: v.string(),
-    userId: v.optional(v.string()),
-    strength: v.optional(v.number()),
-    metadata: v.optional(v.any()),
+    fromType: v.string(), // e.g. 'property'
+    fromId: v.string(), // e.g. ID string
+    relationType: v.string(), // e.g. 'near', 'similar', 'funded_by'
+    toType: v.string(), // e.g. 'location', 'property', 'bank'
+    toId: v.string(), // e.g. ID string
+    userId: v.optional(v.string()), // Optional, if this is a user-specific relation graph
+    strength: v.optional(v.number()), // 0.0 to 1.0 confidence/weight
+    metadata: v.optional(v.any()), // e.g. { distance_km: 1.2 }
     createdAt: v.number(),
   })
     .index("from", ["fromType", "fromId"])
     .index("to", ["toType", "toId"])
     .index("relationType", ["relationType"])
     .index("userId", ["userId"])
-    .index("from_and_relation", ["fromType", "fromId", "relationType"]),
+    .index("from_and_relation", ["fromType", "fromId", "relationType"])
+    // Add compound index to check duplicates without a table scan filter
+    .index("from_to_relation", ["fromType", "fromId", "toId", "relationType"]),
 
   /** AI Token usage tracking for dashboard analytics */
   aiTokenUsage: defineTable({

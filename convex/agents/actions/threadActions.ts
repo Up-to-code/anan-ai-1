@@ -77,10 +77,11 @@ export const archiveExpiredThreads = internalMutation({
   returns: v.object({ archivedCount: v.number() }),
   handler: async (ctx, { limit = 100 }) => {
     const now = Date.now();
-    const allMetadata = await ctx.db.query("threadMetadata").collect();
-    const candidates = allMetadata
-      .filter((item) => !item.archivedAt && typeof item.expiresAt === "number" && item.expiresAt <= now)
-      .slice(0, limit);
+    const candidates = await ctx.db
+      .query("threadMetadata")
+      .withIndex("expiresAt", (q) => q.lte("expiresAt", now))
+      .take(limit * 2)
+      .then((rows) => rows.filter((item) => !item.archivedAt).slice(0, limit));
     let archivedCount = 0;
     for (const item of candidates) {
       try {

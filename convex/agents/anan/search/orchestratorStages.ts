@@ -5,6 +5,8 @@ import { mergeAndRankFindings } from "./ranker";
 import { evaluateCoverage } from "./coverageJudge";
 import type { CoverageReport, SearchExecutionPlan, SearchStageTrace } from "./orchestrationTypes";
 import type { PropertyFinding, SerperResult } from "./types";
+import { type GenericActionCtx } from "convex/server";
+import { type DataModel } from "../../../_generated/dataModel";
 
 export function normalizeUrlSet(urls: string[] | undefined): Set<string> {
   return new Set(
@@ -37,7 +39,7 @@ export async function runStage<T>(
 }
 
 export async function runSecondPassIfNeeded(params: {
-  ctx: unknown;
+  ctx: GenericActionCtx<DataModel>;
   trace: SearchStageTrace[];
   plan: SearchExecutionPlan;
   sources: SerperResult[];

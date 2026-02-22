@@ -14,6 +14,7 @@ const PROMPT_KEYS = ["system", "realEstate", "tools"] as const;
 /** Get merged instructions from prompts table. */
 export const getMergedInstructions = query({
   args: {},
+  returns: v.union(v.string(), v.null()),
   handler: async (ctx) => {
     const docs = await ctx.db.query("prompts").collect();
     const byKey = Object.fromEntries(docs.map((d) => [d.key, d.value]));

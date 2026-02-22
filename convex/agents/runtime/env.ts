@@ -1,13 +1,4 @@
-function isTruthyEnv(value: string | undefined): boolean {
-  if (!value) return false;
-  const normalized = value.trim().toLowerCase();
-  return (
-    normalized === "1" ||
-    normalized === "true" ||
-    normalized === "yes" ||
-    normalized === "on"
-  );
-}
+import { isTruthyEnv, fnv1aHash } from "../_lib/utils";
 
 export function isAgentTestActionsEnabled(): boolean {
   return isTruthyEnv(process.env.AGENT_TEST_ACTIONS);
@@ -19,14 +10,7 @@ function parsePercent(raw: string | undefined, fallback: number): number {
   return Math.max(0, Math.min(100, parsed));
 }
 
-function hashRoutingKey(input: string): number {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < input.length; i += 1) {
-    hash ^= input.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return hash >>> 0;
-}
+
 
 export function getAgentEnvironment(): "production" | "development" {
   const raw = (process.env.AGENT_ENV ?? "").trim().toLowerCase();
@@ -52,5 +36,5 @@ export function isSearchOrchestratorEnabledForKey(routingKey: string): boolean {
   const canaryPercent = getSearchOrchestratorCanaryPercent();
   if (canaryPercent >= 100) return true;
   if (canaryPercent <= 0) return false;
-  return hashRoutingKey(routingKey) % 100 < canaryPercent;
+  return fnv1aHash(routingKey) % 100 < canaryPercent;
 }
