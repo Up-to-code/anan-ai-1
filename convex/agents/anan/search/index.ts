@@ -5,6 +5,7 @@
 
 import type { FunctionReference } from "convex/server";
 import { SEARCH_CIRCUIT_BREAKER_MS } from "../../_lib/constants";
+import { isSearchOrchestratorEnabledForKey } from "../../runtime/env";
 import { buildTaskList, buildSearchTerms, runSerperSearch, selectTopSources } from "./serper";
 import { extractPropertyDetails } from "./stagehand";
 import {
@@ -14,6 +15,7 @@ import {
   buildUserResults,
 } from "./pipeline";
 import { SAUDI_PORTAL_CONFIGS, runPortalSearch, toSerperResult } from "./saudiPortals";
+import { runSearchOrchestrator } from "./searchOrchestrator";
 import type {
   KnowledgePayload,
   PropertyFinding,
@@ -21,6 +23,8 @@ import type {
   SerperResult,
   StagehandState,
 } from "./types";
+import { type GenericActionCtx } from "convex/server";
+import { type DataModel } from "../../../_generated/dataModel";
 
 export type { SearchAgentResult } from "./types";
 export { buildKnowledgePayloadFromDbResults } from "./pipeline";
@@ -41,7 +45,7 @@ function normalizeUrlKey(url: string | undefined): string | null {
  * Fetch full property details (including Property Information and imageUrls) from a detail page URL.
  */
 export async function fetchPropertyDetailsByUrl(
-  ctx: unknown,
+  ctx: GenericActionCtx<DataModel>,
   propertyUrl: string
 ): Promise<{
   title?: string;
@@ -70,7 +74,7 @@ export async function fetchPropertyDetailsByUrl(
  * Store knowledge research record.
  */
 export async function storeKnowledgeResearch(
-  ctx: unknown,
+  ctx: GenericActionCtx<DataModel>,
   appApi: SearchAgentApi,
   payload: KnowledgePayload
 ): Promise<void> {
@@ -97,7 +101,7 @@ export async function storeKnowledgeResearch(
  * Main search agent entry point.
  */
 export async function runSearchAgent(
-  ctx: unknown,
+  ctx: GenericActionCtx<DataModel>,
   params: {
     query: string;
     userId: string;
@@ -125,6 +129,7 @@ export async function runSearchAgent(
       .map((url) => normalizeUrlKey(url))
       .filter((url): url is string => Boolean(url)),
   );
+  const routingKey = threadId ?? `${userId}:${query}`;
 
   console.log("[anan.search] start", {
     query,
@@ -135,6 +140,32 @@ export async function runSearchAgent(
     offset,
     excludedPropertyUrls: excludedUrlKeys.size,
   });
+
+  if (isSearchOrchestratorEnabledForKey(routingKey)) {
+    const orchestrated = await runSearchOrchestrator(ctx, {
+      query,
+      userId,
+      channel,
+      limit,
+      refreshToken,
+      offset,
+      threadId,
+      excludedPropertyUrls,
+    });
+    if (orchestrated.success) {
+      console.log("[anan.search] complete:orchestrated", {
+        duration: orchestrated.durationMs,
+        findingsCount: orchestrated.knowledgePayload.propertyFindings.length,
+        resultCount: orchestrated.userResults.length,
+        coverage: orchestrated.coverageReport?.score,
+      });
+      return orchestrated;
+    }
+    console.warn("[anan.search] orchestrator:fallback_to_legacy", {
+      error: orchestrated.error,
+      traceStages: orchestrated.orchestrationTrace?.length ?? 0,
+    });
+  }
 
   const baseTaskList = buildTaskList(query);
   const taskList =

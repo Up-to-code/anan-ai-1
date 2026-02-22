@@ -93,10 +93,34 @@ export type StagehandState = {
   reason?: string;
 };
 
+export interface GenericPortalConfig {
+  name: string;
+  baseUrl: string;
+  buildSearchUrl: (city: string, isRent: boolean, propertyType: 'apartment' | 'villa' | 'land' | 'any') => string | null;
+  customInstruction?: string;
+}
+
 export type SearchAgentResult = {
   success: boolean;
   knowledgePayload: KnowledgePayload;
   userResults: UserResult[];
   error?: string;
   durationMs: number;
+  orchestrationTrace?: Array<{
+    stage: string;
+    startedAt: number;
+    endedAt: number;
+    status: "ok" | "error" | "skipped";
+    meta?: Record<string, unknown>;
+  }>;
+  coverageReport?: {
+    score: number;
+    resultCount: number;
+    sourceCount: number;
+    imageCoverage: number;
+    detailCoverage: number;
+    noveltyScore: number;
+    shouldRunSecondPass: boolean;
+    reason: string;
+  };
 };

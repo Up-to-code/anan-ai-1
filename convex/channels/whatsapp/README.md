@@ -40,6 +40,10 @@ Set in Convex dashboard (or `.env.local` for dev):
 | `WHATSAPP_OTP_RATE_LIMIT` | auth | Max OTPs per window (default `1`). |
 | `WHATSAPP_OTP_RATE_WINDOW_SEC` | auth | Rate window in seconds (default `60`). |
 | `WHATSAPP_BUSINESS_NUMBER` / `WHATSAPP_PHONE_NUMBER` | auth | For “Chat on WhatsApp” link. |
+| `ASSEMBLYAI_API_KEY` | transcription | API key for voice note transcription. |
+| `ASSEMBLYAI_LANGUAGE_CODE` | transcription | Default transcription language (default `ar`). |
+| `ASSEMBLYAI_TIMEOUT_MS` | transcription | Poll timeout for transcript completion (default `15000`). |
+| `ASSEMBLYAI_POLL_INTERVAL_MS` | transcription | Poll interval in ms (default `800`). |
 
 ## Message flow (POST webhook)
 
@@ -50,6 +54,7 @@ Set in Convex dashboard (or `.env.local` for dev):
    - Mark as read, optional typing indicator.
    - If body looks like OTP (`isOtpLike`) → `internal.features.auth.actions.completeVerification`; send success/error in Arabic.
    - Else → ensure user via `api.services.users.ensureWhatsAppUser`, then `internal.agents.actions.generateReplyAndReturnText` with `channel: "whatsapp"`, send text or text+image.
+   - If media type is `audio` and media id exists → transcribe with AssemblyAI first, then send transcript to agent.
 
 ## Continuing / extending
 

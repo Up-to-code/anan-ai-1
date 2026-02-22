@@ -5,6 +5,8 @@
  * AGENT_MODEL_TRAFFIC_SPLIT="openrouter/model-a:70,openrouter/model-b:30"
  */
 
+import { fnv1aHash } from "./_lib/utils";
+
 export type WeightedModel = {
   model: string;
   weight: number;
@@ -29,16 +31,6 @@ export function parseModelTrafficSplit(raw: string | undefined): WeightedModel[]
   return parsed;
 }
 
-function hashToBucket(input: string): number {
-  // FNV-1a 32-bit hash
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < input.length; i += 1) {
-    hash ^= input.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return hash >>> 0;
-}
-
 export function selectModelByRoutingKey(
   routes: WeightedModel[],
   routingKey: string,
@@ -46,7 +38,7 @@ export function selectModelByRoutingKey(
   if (!routes.length) return undefined;
   const totalWeight = routes.reduce((sum, route) => sum + route.weight, 0);
   if (totalWeight <= 0) return undefined;
-  const bucket = hashToBucket(routingKey) % totalWeight;
+  const bucket = fnv1aHash(routingKey) % totalWeight;
   let acc = 0;
   for (const route of routes) {
     acc += route.weight;

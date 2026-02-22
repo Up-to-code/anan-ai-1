@@ -6,6 +6,8 @@ import { ActionCache } from "@convex-dev/action-cache";
 import { Stagehand } from "@browserbasehq/convex-stagehand";
 import { toonEncode } from "../../../lib/toon";
 import { z } from "zod";
+import { type GenericActionCtx } from "convex/server";
+import { type DataModel } from "../../../_generated/dataModel";
 import { components } from "../../../_generated/api";
 import { internal } from "../../../_generated/api";
 import { debugLog } from "../../debug";
@@ -29,23 +31,7 @@ function shapeRealEstateQuery(query: string): string {
   return shaped;
 }
 
-function shapeLoanQuery(params: {
-  query: string;
-  loanType?: "mortgage" | "personal" | "auto" | "general";
-  includeUae?: boolean;
-}): string {
-  const q = params.query.trim();
-  const region = params.includeUae ? "Saudi Arabia UAE" : "Saudi Arabia";
-  const typeHint =
-    params.loanType === "mortgage"
-      ? "mortgage home financing"
-      : params.loanType === "personal"
-        ? "personal loan"
-        : params.loanType === "auto"
-          ? "auto car loan"
-          : "loan financing";
-  return `${q} ${typeHint} ${region} rates eligibility calculator`;
-}
+
 
 export function createWebTools(_appApi: AgentToolsApi) {
   const webSearch = createTool({
@@ -104,6 +90,7 @@ export function createWebTools(_appApi: AgentToolsApi) {
           query,
           error: e instanceof Error ? e.message : "unknown_error",
         });
+        console.error(`[tools.webSearch] webSearch failed for query: "${query}"`, e);
         return toonEncode({
           error: e instanceof Error ? e.message : "Web search request failed",
         });
@@ -168,6 +155,7 @@ export function createWebTools(_appApi: AgentToolsApi) {
           query,
           error: e instanceof Error ? e.message : "unknown_error",
         });
+        console.error(`[tools.searchRealEstateInfo] Real estate search failed for query: "${query}" (shaped: "${shapedQuery}")`, e);
         return toonEncode({
           error: e instanceof Error ? e.message : "Real estate search failed",
         });
@@ -175,126 +163,7 @@ export function createWebTools(_appApi: AgentToolsApi) {
     },
   });
 
-  const searchSaudiLoans = createTool({
-    description:
-      "Search up-to-date loan/mortgage information in Saudi Arabia (and optional UAE). Use for rates, eligibility, bank offers, and policy updates.",
-    args: z.object({
-      query: z
-        .string()
-        .describe(
-          "Loan search topic (e.g. 'best mortgage rates for first-time buyers')",
-        ),
-      loanType: z
-        .enum(["mortgage", "personal", "auto", "general"])
-        .optional()
-        .default("general"),
-      includeUae: z
-        .boolean()
-        .optional()
-        .default(false)
-        .describe("When true, include UAE sources in the search."),
-      num: z.number().optional().default(8),
-    }),
-    handler: async (ctx, { query, loanType, includeUae, num }) => {
-      const shaped = shapeLoanQuery({ query, loanType, includeUae });
-      try {
-        const cached = await serperCache.fetch(ctx as any, {
-          query: shaped,
-          num: Math.max(6, num),
-          deep: true,
-        });
-        if (!cached?.ok) {
-          return toonEncode({ error: cached?.error ?? "loan search failed" });
-        }
-        return toonEncode({
-          query: shaped,
-          region: includeUae ? ["saudi", "uae"] : ["saudi"],
-          loanType,
-          results: cached.results,
-          searchPlan: {
-            deep: true,
-            queriesUsed: Array.isArray((cached as { queriesUsed?: unknown }).queriesUsed)
-              ? (cached as { queriesUsed: string[] }).queriesUsed
-              : [shaped],
-          },
-          presentationGuidance: {
-            avoidProviderNames: true,
-            includeLinksOnlyOnUserRequest: true,
-          },
-        });
-      } catch (e) {
-        return toonEncode({
-          error: e instanceof Error ? e.message : "searchSaudiLoans failed",
-        });
-      }
-    },
-  });
 
-  const calculateSaudiLoan = createTool({
-    description:
-      "Calculate loan installment and affordability for Saudi scenarios. Use for quick estimations before recommending banks.",
-    args: z.object({
-      principal: z.number().describe("Property or loan principal amount in SAR"),
-      annualRatePct: z.number().describe("Annual interest/profit rate as percent"),
-      years: z.number().describe("Loan duration in years"),
-      downPayment: z.number().optional().default(0),
-      monthlyIncome: z.number().optional(),
-      existingMonthlyDebt: z.number().optional().default(0),
-    }),
-    handler: async (
-      _ctx,
-      {
-        principal,
-        annualRatePct,
-        years,
-        downPayment,
-        monthlyIncome,
-        existingMonthlyDebt,
-      },
-    ) => {
-      const financedAmount = Math.max(0, principal - Math.max(0, downPayment));
-      const monthlyRate = annualRatePct / 100 / 12;
-      const months = Math.max(1, Math.round(years * 12));
-      const monthlyPayment =
-        monthlyRate <= 0
-          ? financedAmount / months
-          : (financedAmount * monthlyRate) /
-            (1 - Math.pow(1 + monthlyRate, -months));
-      const totalPayment = monthlyPayment * months;
-      const totalProfit = Math.max(0, totalPayment - financedAmount);
-      const totalDebt = monthlyPayment + Math.max(0, existingMonthlyDebt);
-      const dti =
-        monthlyIncome && monthlyIncome > 0 ? totalDebt / monthlyIncome : undefined;
-      const dtiBand =
-        typeof dti !== "number"
-          ? "unknown"
-          : dti <= 0.45
-            ? "strong"
-            : dti <= 0.55
-              ? "moderate"
-              : "high_risk";
-      return toonEncode({
-        currency: "SAR",
-        inputs: {
-          principal,
-          downPayment,
-          annualRatePct,
-          years,
-          monthlyIncome,
-          existingMonthlyDebt,
-        },
-        outputs: {
-          financedAmount: Math.round(financedAmount),
-          monthlyPayment: Math.round(monthlyPayment),
-          totalPayment: Math.round(totalPayment),
-          totalProfit: Math.round(totalProfit),
-          dti: typeof dti === "number" ? Number(dti.toFixed(3)) : undefined,
-          dtiBand,
-        },
-        note: "This is an estimate only; final eligibility and pricing depend on lender policy.",
-      });
-    },
-  });
 
   const browseAndExtract = createTool({
     description:
@@ -319,18 +188,36 @@ export function createWebTools(_appApi: AgentToolsApi) {
           url: args.url,
           instruction: args.instruction,
           schema: z.object({
-            summary: z.string().optional(),
-            findings: z
+            title: z.string().optional().describe("Page title"),
+            mainContent: z.string().optional().describe("Cleaned primary text content of the page"),
+            summary: z.string().optional().describe("Brief summary of the page matching the instruction"),
+            structuredData: z
               .array(
                 z.object({
-                  title: z.string().optional(),
-                  value: z.string().optional(),
-                  details: z.string().optional(),
-                  url: z.string().optional(),
+                  key: z.string(),
+                  value: z.string(),
                 })
               )
-              .optional(),
-            links: z.array(z.string()).optional(),
+              .optional()
+              .describe("Any key-value pairs or tables found, e.g. property stats, specs"),
+            images: z
+              .array(
+                z.object({
+                  src: z.string(),
+                  alt: z.string().optional(),
+                })
+              )
+              .optional()
+              .describe("Important images on the page"),
+            links: z
+              .array(
+                z.object({
+                  text: z.string(),
+                  href: z.string(),
+                })
+              )
+              .optional()
+              .describe("Relevant links on the page"),
           }),
         });
         return toonEncode({
@@ -343,6 +230,7 @@ export function createWebTools(_appApi: AgentToolsApi) {
           },
         });
       } catch (e) {
+        console.error(`[tools.browseAndExtract] Stagehand extraction failed for url: "${args.url}" with instruction: "${args.instruction}"`, e);
         return toonEncode({
           error:
             e instanceof Error
@@ -353,11 +241,44 @@ export function createWebTools(_appApi: AgentToolsApi) {
     },
   });
 
+  const fetchPageContent = createTool({
+    description: "Lightweight tool to fetch raw text content of a URL without opening a browser. Use when you only need the text of an article, docs, or page (like Aqar.fm) and Stagehand browser is overkill.",
+    args: z.object({
+      url: z.string().url().describe("URL to fetch"),
+      maxChars: z.number().optional().describe("Maximum characters to return (default 4000)"),
+    }),
+    handler: async (_ctx, { url, maxChars = 4000 }) => {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) {
+          return toonEncode({ error: `Fetch failed: ${res.status} ${res.statusText}` });
+        }
+        const html = await res.text();
+        const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+        let text = bodyMatch ? bodyMatch[1] : html;
+        text = text
+          .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, " ")
+          .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, " ")
+          .replace(/<[^>]+>/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+        if (text.length > maxChars) {
+          text = text.slice(0, maxChars) + "... (truncated)";
+        }
+        return toonEncode({ source: "fetch", url, content: text });
+      } catch (e) {
+        console.error(`[tools.fetchPageContent] Failed to fetch ${url}`, e);
+        return toonEncode({
+          error: e instanceof Error ? e.message : "Fetch failed",
+        });
+      }
+    },
+  });
+
   return {
     webSearch,
     searchRealEstateInfo,
-    searchSaudiLoans,
-    calculateSaudiLoan,
     browseAndExtract,
+    fetchPageContent,
   };
 }

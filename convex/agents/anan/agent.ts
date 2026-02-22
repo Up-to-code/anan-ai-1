@@ -7,7 +7,6 @@ import { components } from "../../_generated/api";
 import { getChatModel, getEmbeddingModel } from "../../lib/providers";
 import { recordAgentUsage } from "../../costs";
 import { getLLMMaxRetries } from "../config";
-import { buildAgentInstructions } from "./instructions";
 import { createAgentTools } from "./tools";
 import type { AgentToolsApi } from "./tools";
 
@@ -26,7 +25,9 @@ export function createAnanAgent(
     name: "ANAN",
     languageModel: getChatModel(options?.modelOverride),
     textEmbeddingModel: getEmbeddingModel(),
-    instructions: buildAgentInstructions(),
+    // Runtime calls pass `system` per-request; keep constructor instructions empty
+    // to avoid duplicated/conflicting prompt layers.
+    instructions: "",
     tools,
     maxSteps: 6,
     usageHandler: async (ctx, args) => {

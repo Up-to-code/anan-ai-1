@@ -1,7 +1,12 @@
 import { internalMutation, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { components } from "./_generated/api";
-import { systemPrompt, realEstatePrompt, toolsPrompt } from "./lib/prompts";
+import { systemPrompt } from "./agents/anan/instructions/system";
+import {
+  reasoningBlock,
+  realEstatePrompt,
+} from "./agents/anan/instructions/realEstate";
+import { toolsPrompt } from "./agents/anan/instructions/toolsSummary";
 import { ROLE_ADMIN } from "./roles";
 
 const propertyImportValidator = v.object({
@@ -22,6 +27,7 @@ export const importFromJson = mutation({
   args: {
     properties: v.array(propertyImportValidator),
   },
+  returns: v.object({ inserted: v.number() }),
   handler: async (ctx, { properties: props }) => {
     let inserted = 0;
     for (const p of props) {
@@ -45,10 +51,11 @@ export const importFromJson = mutation({
  */
 export const updatePrompts = mutation({
   args: {},
+  returns: v.object({ updated: v.number() }),
   handler: async (ctx) => {
     const prompts = [
       { key: "system", value: systemPrompt },
-      { key: "realEstate", value: realEstatePrompt },
+      { key: "realEstate", value: `${reasoningBlock}\n\n${realEstatePrompt}` },
       { key: "tools", value: toolsPrompt },
     ];
     for (const p of prompts) {
@@ -73,6 +80,7 @@ export const updatePrompts = mutation({
  */
 export const addAdmin = internalMutation({
   args: { userId: v.string() },
+  returns: v.id("adminUsers"),
   handler: async (ctx, { userId }) => {
     const existing = await ctx.db
       .query("adminUsers")
@@ -95,6 +103,7 @@ export const addAdmin = internalMutation({
  */
 export const addAdminByEmail = mutation({
   args: { email: v.string() },
+  returns: v.id("adminUsers"),
   handler: async (ctx, { email }) => {
     const user = await ctx.runQuery(components.betterAuth.adapter.findOne, {
       model: "user",
@@ -122,6 +131,7 @@ export const addAdminByEmail = mutation({
  */
 export const migrateAdminUsersToRoles = internalMutation({
   args: {},
+  returns: v.object({ migrated: v.number(), inserted: v.number() }),
   handler: async (ctx) => {
     const admins = await ctx.db.query("adminUsers").collect();
     let inserted = 0;
@@ -154,6 +164,7 @@ export const migrateAdminUsersToRoles = internalMutation({
  */
 export const run = mutation({
   args: {},
+  returns: v.any(),
   handler: async (ctx) => {
     const existingBanks = await ctx.db.query("banks").take(1);
     const existingPrompts = await ctx.db.query("prompts").take(1);
@@ -164,7 +175,7 @@ export const run = mutation({
       await ctx.db.insert("prompts", { key: "system", value: systemPrompt });
       await ctx.db.insert("prompts", {
         key: "realEstate",
-        value: realEstatePrompt,
+        value: `${reasoningBlock}\n\n${realEstatePrompt}`,
       });
       await ctx.db.insert("prompts", { key: "tools", value: toolsPrompt });
     }
@@ -172,8 +183,8 @@ export const run = mutation({
     if (existingAISettings.length === 0) {
       // Initialize default AI settings
       const defaultSettings = [
-        { key: "defaultModel", value: "openai/gpt-4o-mini" },
-        { key: "searchModel", value: "openai/gpt-4o-mini" },
+        { key: "defaultModel", value: "moonshotai/kimi-k2-thinking" },
+        { key: "searchModel", value: "moonshotai/kimi-k2-thinking" },
         { key: "maxTokens", value: "4096" },
         { key: "temperature", value: "0.7" },
         { key: "enableCache", value: "true" },

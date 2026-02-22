@@ -133,6 +133,31 @@ const MIXED_PAYLOAD = JSON.stringify({
 const EMPTY_PAYLOAD = JSON.stringify({});
 const NO_ENTRY_PAYLOAD = JSON.stringify({ object: "whatsapp_business_account" });
 const MALFORMED_PAYLOAD = "{ invalid json }";
+const AUDIO_PAYLOAD = JSON.stringify({
+  object: "whatsapp_business_account",
+  entry: [
+    {
+      id: "123",
+      changes: [
+        {
+          value: {
+            metadata: { phone_number_id: "pid-audio", display_phone_number: "1555" },
+            contacts: [{ profile: { name: "Voice User" }, wa_id: "201000000000" }],
+            messages: [
+              {
+                from: "201000000000",
+                id: "wamid.audio",
+                type: "audio",
+                audio: { id: "media-audio-123" },
+              },
+            ],
+          },
+          field: "messages",
+        },
+      ],
+    },
+  ],
+});
 
 describe("extractWebhookEvents", () => {
   it("extracts text message from value.messages", () => {
@@ -192,6 +217,13 @@ describe("extractAllWebhookEvents", () => {
     expect(messages).toHaveLength(1);
     expect(messages[0].text).toBe("OTP 654321");
     expect(reactions).toHaveLength(0);
+  });
+
+  it("extracts audio message mediaId for transcription pipeline", () => {
+    const { messages } = extractAllWebhookEvents(AUDIO_PAYLOAD);
+    expect(messages).toHaveLength(1);
+    expect(messages[0].mediaType).toBe("audio");
+    expect(messages[0].mediaId).toBe("media-audio-123");
   });
 
   it("returns empty arrays for empty body", () => {

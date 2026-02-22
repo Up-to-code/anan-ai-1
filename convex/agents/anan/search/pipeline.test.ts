@@ -88,7 +88,7 @@ describe("buildFindings", () => {
       imageUrls: [`https://img.example.com/detail-${url.split("/").pop()}.jpg`],
     }));
 
-    const findings = await buildFindings({}, sources, [], {
+    const findings = await buildFindings({} as any, sources, [], {
       maxFindings: 6,
       detailEnrichCount: 3,
     });
@@ -130,7 +130,7 @@ describe("buildFindings", () => {
       imageUrls: [],
     }));
 
-    const findings = await buildFindings({}, sources, [], {
+    const findings = await buildFindings({} as any, sources, [], {
       maxFindings: 5,
       detailEnrichCount: 3,
       excludePropertyUrls: new Set(["https://example.com/p/old"]),

@@ -23,6 +23,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Structure checks
+        run: npm run check:structure
+
       - name: Run unit tests
         run: npm run test:once
 

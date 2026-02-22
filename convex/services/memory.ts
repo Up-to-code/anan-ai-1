@@ -259,7 +259,7 @@ export const storeWithEmbedding = internalMutation({
 
     const embeddingRecord = await ctx.db
       .query("agentMemoryEmbeddings")
-      .filter((q) => q.eq(q.field("memoryId"), memoryId))
+      .withIndex("by_memoryId", (q) => q.eq("memoryId", memoryId))
       .first();
 
     if (embeddingRecord) {
@@ -684,13 +684,13 @@ export const storeEntityRelationInternal = internalMutation({
   handler: async (ctx, args) => {
     const existing = await ctx.db
       .query("entityRelations")
-      .withIndex("from_and_relation", (q) =>
+      .withIndex("from_to_relation", (q) =>
         q
           .eq("fromType", args.fromType)
           .eq("fromId", args.fromId)
+          .eq("toId", args.toId)
           .eq("relationType", args.relationType),
       )
-      .filter((q) => q.eq(q.field("toId"), args.toId))
       .first();
 
     if (existing) {
@@ -730,13 +730,13 @@ export const storeEntityRelation = mutation({
     }
     const existing = await ctx.db
       .query("entityRelations")
-      .withIndex("from_and_relation", (q) =>
+      .withIndex("from_to_relation", (q) =>
         q
           .eq("fromType", args.fromType)
           .eq("fromId", args.fromId)
+          .eq("toId", args.toId)
           .eq("relationType", args.relationType),
       )
-      .filter((q) => q.eq(q.field("toId"), args.toId))
       .first();
 
     if (existing) {

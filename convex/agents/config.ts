@@ -1,10 +1,3 @@
-/**
- * Agent LLM configuration – single source for all agent model/provider settings.
- * All env vars are read from the Convex dashboard (cloud). Convex does not use a local .env for these.
- * Switch between local (LLM Studio), OpenRouter, or custom server via LLM_MODE.
- * Sync only; no Convex actions/queries.
- */
-
 export type LLMMode = "local" | "openrouter" | "server";
 
 export type AgentLLMConfig =
@@ -28,9 +21,19 @@ export type AgentLLMConfig =
 
 const DEFAULT_LOCAL_BASE_URL = "http://127.0.0.1:1234/v1";
 const DEFAULT_LOCAL_MODEL = "google/gemma-3-4b";
-const DEFAULT_OPENROUTER_MODEL = "stepfun/step-3.5-flash:free";
+const DEFAULT_OPENROUTER_MODEL = "moonshotai/kimi-k2-thinking";
 const DEFAULT_LLM_TIMEOUT_MS = 15000; // 15s – set LLM_TIMEOUT_MS to override (plan: 15–20s for fewer false timeouts)
 const DEFAULT_LLM_MAX_RETRIES = 0;
+const DEFAULT_PRODUCTION_MODEL = "moonshotai/kimi-k2-thinking";
+
+function isFreeModelId(model: string): boolean {
+  return /(^|:)\s*free$/i.test(model.trim());
+}
+
+function enforcePaidModel(model: string): string {
+  if (!isFreeModelId(model)) return model;
+  return process.env.AGENT_PROD_PRIMARY_MODEL?.trim() || DEFAULT_PRODUCTION_MODEL;
+}
 
 function parseMode(raw: string | undefined): LLMMode {
   const v = (raw ?? "").toLowerCase().trim();
@@ -39,14 +42,6 @@ function parseMode(raw: string | undefined): LLMMode {
   return "local";
 }
 
-/**
- * Resolves agent LLM config from environment.
- * Convex reads these from the dashboard only (Settings → Environment Variables); no local .env.
- * For local/server modes with Convex (cloud): LLM_BASE_URL must be a publicly reachable URL
- * (e.g. tunnel or custom domain to your LLM). To use 127.0.0.1 (e.g. LLM Studio), run
- * Convex locally so the backend can reach it: npx convex dev --local.
- * LLM_API_KEY set in the dashboard is sent with each request (omit or leave empty for no auth).
- */
 export function getAgentLLMConfig(): AgentLLMConfig {
   const mode = parseMode(process.env.LLM_MODE);
 
@@ -59,22 +54,22 @@ export function getAgentLLMConfig(): AgentLLMConfig {
     }
     return {
       mode: "openrouter",
-      model: process.env.OPENROUTER_MODEL ?? DEFAULT_OPENROUTER_MODEL,
+      model: enforcePaidModel(
+        process.env.OPENROUTER_MODEL ?? DEFAULT_OPENROUTER_MODEL,
+      ),
       apiKey,
     };
   }
 
   if (mode === "local") {
-    // With Convex (cloud), LLM_BASE_URL must be publicly reachable (tunnel/custom domain); LLM_API_KEY from dashboard is sent with requests.
     return {
       mode: "local",
-      model: process.env.LLM_MODEL ?? DEFAULT_LOCAL_MODEL,
+      model: enforcePaidModel(process.env.LLM_MODEL ?? DEFAULT_LOCAL_MODEL),
       baseURL: process.env.LLM_BASE_URL ?? DEFAULT_LOCAL_BASE_URL,
       apiKey: process.env.LLM_API_KEY,
     };
   }
 
-  // mode === "server" – LLM_BASE_URL must be publicly reachable; LLM_API_KEY from dashboard is sent with requests.
   const baseURL = process.env.LLM_BASE_URL;
   if (!baseURL) {
     throw new Error(
@@ -83,13 +78,14 @@ export function getAgentLLMConfig(): AgentLLMConfig {
   }
   return {
     mode: "server",
-    model: process.env.LLM_MODEL ?? DEFAULT_OPENROUTER_MODEL,
+    model: enforcePaidModel(
+      process.env.LLM_MODEL ?? DEFAULT_OPENROUTER_MODEL,
+    ),
     baseURL,
     apiKey: process.env.LLM_API_KEY,
   };
 }
 
-/** Safe version for admin display – returns { mode, model } or null if config is invalid. */
 export function getAgentLLMConfigSafe(): { mode: string; model: string } | null {
   try {
     const config = getAgentLLMConfig();
@@ -99,7 +95,6 @@ export function getAgentLLMConfigSafe(): { mode: string; model: string } | null 
   }
 }
 
-/** Timeout in ms for LLM calls. Default 12700 (12.7s). Set LLM_TIMEOUT_MS to override. */
 export function getLLMTimeoutMs(): number {
   const raw = process.env.LLM_TIMEOUT_MS;
   if (raw == null || raw === "") return DEFAULT_LLM_TIMEOUT_MS;
@@ -107,7 +102,6 @@ export function getLLMTimeoutMs(): number {
   return Number.isFinite(n) && n > 0 ? n : DEFAULT_LLM_TIMEOUT_MS;
 }
 
-/** Max retry attempts per model call at AI SDK level. Default 0 to avoid retry storms under provider 429s. */
 export function getLLMMaxRetries(): number {
   const raw = process.env.LLM_MAX_RETRIES;
   if (raw == null || raw === "") return DEFAULT_LLM_MAX_RETRIES;

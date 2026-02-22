@@ -418,3 +418,13 @@ export {
   getToolCacheKey,
 } from "./toolRegistry";
 export type { ToolMetadata, ToolSelectionResult } from "./toolRegistry";
+export { classifyRuntimeIntent } from "./intentClassifier";
+export { buildSpecialistTasks } from "./toolPlanner";
+export { createExecutionPlan } from "./executionPolicy";
+export type {
+  AgentRuntimeContext,
+  SpecialistTask,
+  SpecialistResult,
+  ExecutionPlan,
+  FinalResponseEnvelope,
+} from "./types";

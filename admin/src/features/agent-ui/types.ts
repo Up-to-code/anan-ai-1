@@ -8,6 +8,38 @@ export type AgentThread = {
 
 export type AgentMessageStatus = "streaming" | "finished" | "aborted";
 
+export type AdminTaskScope =
+  | "users"
+  | "orders"
+  | "properties"
+  | "banks"
+  | "knowledge"
+  | "prompts"
+  | "analytics"
+  | "system";
+
+export type AdminTaskMode = "plan_then_execute" | "plan_only" | "execute_only" | "audit";
+
+export type AdminTaskOutputStyle = "brief" | "detailed" | "checklist";
+
+export type AdminTaskRequest = {
+  threadId?: string;
+  goal: string;
+  scope: AdminTaskScope;
+  mode: AdminTaskMode;
+  outputStyle: AdminTaskOutputStyle;
+  context?: string;
+  acceptanceCriteria?: string[];
+  requirements: {
+    needUi: boolean;
+    needBackend: boolean;
+    needTests: boolean;
+    needRisks: boolean;
+    needRollback: boolean;
+    needMetrics: boolean;
+  };
+};
+
 export type AgentMessage = {
   id: string;
   content: string;
@@ -68,4 +100,31 @@ export type AssistantPayload =
       state: "pending" | "confirmed" | "cancelled" | "executed" | "failed";
       title: string;
       details?: string;
+    }
+  | {
+      type: "engagement";
+      conversationObjective?: string;
+      missingFields?: Array<{
+        key: string;
+        label: string;
+        required: boolean;
+        value?: string;
+      }>;
+      suggestedActions?: Array<{
+        id: string;
+        label: string;
+        action: string;
+        payload?: unknown;
+      }>;
+      responseSections?: {
+        answer?: string;
+        details?: string[];
+        nextStep?: string;
+      };
+      progressStage?:
+        | "analyzing"
+        | "memory"
+        | "searching"
+        | "validating"
+        | "formatting";
     };

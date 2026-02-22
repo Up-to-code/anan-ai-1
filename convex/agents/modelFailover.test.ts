@@ -14,32 +14,44 @@ describe("modelFailover", () => {
 
   it("builds fallback chain with configured fallbacks first", () => {
     const chain = buildModelFallbackChain({
-      selectedModel: "openrouter/aurora-alpha",
-      defaultModel: "openrouter/aurora-alpha",
-      configuredFallbacksRaw:
-        "stepfun/step-3.5-flash:free,arcee-ai/trinity-large-preview:free",
+      selectedModel: "moonshotai/kimi-k2-thinking",
+      defaultModel: "moonshotai/kimi-k2-thinking",
+      configuredFallbacksRaw: "openai/gpt-4o",
       demoFallbacksRaw: "x,y",
     });
     expect(chain).toEqual([
-      "openrouter/aurora-alpha",
-      "stepfun/step-3.5-flash:free",
-      "arcee-ai/trinity-large-preview:free",
+      "moonshotai/kimi-k2-thinking",
+      "openai/gpt-4o",
     ]);
   });
 
   it("falls back to demo pool when configured fallbacks are empty", () => {
     const chain = buildModelFallbackChain({
-      selectedModel: "openrouter/aurora-alpha",
-      defaultModel: "openrouter/aurora-alpha",
+      selectedModel: "moonshotai/kimi-k2-thinking",
+      defaultModel: "moonshotai/kimi-k2-thinking",
       configuredFallbacksRaw: "",
-      demoFallbacksRaw:
-        "stepfun/step-3.5-flash:free,arcee-ai/trinity-large-preview:free",
+      demoFallbacksRaw: "openai/gpt-4o",
     });
     expect(chain).toEqual([
-      "openrouter/aurora-alpha",
-      "stepfun/step-3.5-flash:free",
-      "arcee-ai/trinity-large-preview:free",
+      "moonshotai/kimi-k2-thinking",
+      "openai/gpt-4o",
     ]);
+  });
+
+  it("removes free fallbacks in production mode", () => {
+    const previous = process.env.AGENT_ENV;
+    process.env.AGENT_ENV = "production";
+    const chain = buildModelFallbackChain({
+      selectedModel: "moonshotai/kimi-k2-thinking",
+      defaultModel: "moonshotai/kimi-k2-thinking",
+      configuredFallbacksRaw: "stepfun/step-3.5-flash:free,openai/gpt-4o",
+    });
+    if (previous === undefined) {
+      delete process.env.AGENT_ENV;
+    } else {
+      process.env.AGENT_ENV = previous;
+    }
+    expect(chain).toEqual(["moonshotai/kimi-k2-thinking", "openai/gpt-4o"]);
   });
 
   it("detects nested AI retry rate-limit errors", () => {

@@ -5,10 +5,12 @@ import {
   ensureOfferQueueHasImageFallback,
   normalizeWhatsAppImageUrls,
   normalizeWhatsAppOfferBlocks,
+  parseQuickReplyIntent,
+  parseVoiceConfirmationDecision,
 } from "./webhook";
 
 describe("normalizeWhatsAppImageUrls", () => {
-  it("uses imageUrls when provided, deduplicates, and caps to 5", () => {
+  it("uses imageUrls when provided, deduplicates, and caps to 8 by default", () => {
     const result = normalizeWhatsAppImageUrls(undefined, [
       "https://img.example.com/1.jpg",
       "https://img.example.com/2.jpg",
@@ -25,6 +27,7 @@ describe("normalizeWhatsAppImageUrls", () => {
       "https://img.example.com/3.jpg",
       "https://img.example.com/4.jpg",
       "https://img.example.com/5.jpg",
+      "https://img.example.com/6.jpg",
     ]);
   });
 
@@ -63,7 +66,7 @@ describe("normalizeWhatsAppOfferBlocks", () => {
 });
 
 describe("buildWhatsAppOfferSendQueue", () => {
-  it("builds queue with first image+caption then compact CTA per property", () => {
+  it("builds compact queue with one message block per property", () => {
     const queue = buildWhatsAppOfferSendQueue([
       { text: "Offer one details", imageUrl: "https://img.example.com/1.jpg" },
       { text: "Offer two details" },
@@ -74,24 +77,17 @@ describe("buildWhatsAppOfferSendQueue", () => {
     expect(queue).toEqual([
       {
         type: "image_with_caption",
-        text: "Offer one details",
+        text: "Offer one details\nReply with offer number (1/2/3) for details, or say: compare.\nWould you like me to take the next step now?",
         imageUrl: "https://img.example.com/1.jpg",
-        extraImageUrls: [],
       },
       {
         type: "text",
-        text: "If this option fits you, reply with interested and I will arrange the next step.",
+        text: "Offer two details\nReply with offer number (1/2/3) for details, or say: compare.\nWould you like me to take the next step now?",
       },
-      { type: "text", text: "Offer two details" },
       {
         type: "image_with_caption",
-        text: "Offer three details",
+        text: "Offer three details\nReply with offer number (1/2/3) for details, or say: compare.\nWould you like me to take the next step now?",
         imageUrl: "https://img.example.com/3.jpg",
-        extraImageUrls: [],
-      },
-      {
-        type: "text",
-        text: "If this option fits you, reply with interested and I will arrange the next step.",
       },
     ]);
   });
@@ -101,7 +97,7 @@ describe("buildWhatsAppOfferSendQueue", () => {
     expect(queue).toEqual([]);
   });
 
-  it("sends first image with caption, then extra images, then compact CTA", () => {
+  it("uses only first image for normal search queue", () => {
     const queue = buildWhatsAppOfferSendQueue([
       {
         text: "Offer with gallery",
@@ -116,21 +112,13 @@ describe("buildWhatsAppOfferSendQueue", () => {
     expect(queue).toEqual([
       {
         type: "image_with_caption",
-        text: "Offer with gallery",
+        text: "Offer with gallery\nReply with offer number (1/2/3) for details, or say: compare.\nWould you like me to take the next step now?",
         imageUrl: "https://img.example.com/1.jpg",
-        extraImageUrls: [
-          "https://img.example.com/2.jpg",
-          "https://img.example.com/3.jpg",
-        ],
-      },
-      {
-        type: "text",
-        text: "If this option fits you, reply with interested and I will arrange the next step.",
       },
     ]);
   });
 
-  it("preserves multiple images per offer for 2+ offer blocks", () => {
+  it("keeps one block per offer even when multiple imageUrls exist", () => {
     const queue = buildWhatsAppOfferSendQueue(
       [
         {
@@ -146,32 +134,40 @@ describe("buildWhatsAppOfferSendQueue", () => {
       ],
       5
     );
-    expect(queue).toHaveLength(4);
+    expect(queue).toHaveLength(2);
     expect(queue[0]).toEqual({
       type: "image_with_caption",
-      text: "Property 1",
+      text: "Property 1\nReply with offer number (1/2/3) for details, or say: compare.\nWould you like me to take the next step now?",
       imageUrl: "https://img.example.com/a1.jpg",
-      extraImageUrls: ["https://img.example.com/a2.jpg"],
     });
     expect(queue[1]).toEqual({
-      type: "text",
-      text: "If this option fits you, reply with interested and I will arrange the next step.",
-    });
-    expect(queue[2]).toEqual({
       type: "image_with_caption",
-      text: "Property 2",
+      text: "Property 2\nReply with offer number (1/2/3) for details, or say: compare.\nWould you like me to take the next step now?",
       imageUrl: "https://img.example.com/b1.jpg",
-      extraImageUrls: ["https://img.example.com/b2.jpg"],
     });
-    expect(queue[3]).toEqual({
-      type: "text",
-      text: "If this option fits you, reply with interested and I will arrange the next step.",
+  });
+
+  it("uses suggested action label as contextual CTA when provided", () => {
+    const queue = buildWhatsAppOfferSendQueue(
+      [{ text: "Property 1", imageUrl: "https://img.example.com/a1.jpg" }],
+      3,
+      {
+        responseMode: "search_list",
+        suggestedActions: [
+          { id: "compare", label: "قارن بينهم الآن", action: "قارن" },
+        ],
+      },
+    );
+    expect(queue[0]).toEqual({
+      type: "image_with_caption",
+      text: "Property 1\nقارن بينهم الآن\nتحب أعرض لك الخطوة الجاية الآن؟",
+      imageUrl: "https://img.example.com/a1.jpg",
     });
   });
 });
 
 describe("buildSinglePropertyDetailQueue", () => {
-  it("sends all images first (no caption), then one text block with description, link, and CTA", () => {
+  it("sends all images first, then one text block without forced link", () => {
     const queue = buildSinglePropertyDetailQueue({
       text: "3BR apartment in Riyadh. Price: 1.2M SAR.",
       imageUrl: "https://img.example.com/1.jpg",
@@ -189,12 +185,13 @@ describe("buildSinglePropertyDetailQueue", () => {
     expect(queue[2]).toEqual({ type: "image", imageUrl: "https://img.example.com/3.jpg" });
     expect(queue[3].type).toBe("text");
     expect((queue[3] as { type: "text"; text: string }).text).toContain("3BR apartment in Riyadh");
-    expect((queue[3] as { type: "text"; text: string }).text).toContain(
+    expect((queue[3] as { type: "text"; text: string }).text).not.toContain(
       "https://example.com/listing/123"
     );
     expect((queue[3] as { type: "text"; text: string }).text).toContain(
-      "If this option fits you"
+      "viewing booking"
     );
+    expect((queue[3] as { type: "text"; text: string }).text).toMatch(/[?؟]$/);
   });
 
   it("handles block with single imageUrl", () => {
@@ -222,7 +219,6 @@ describe("ensureOfferQueueHasImageFallback", () => {
       type: "image_with_caption",
       text: "Offer one details",
       imageUrl: "https://img.example.com/fallback.jpg",
-      extraImageUrls: [],
     });
     expect(queue[1]).toEqual({
       type: "text",
@@ -243,5 +239,31 @@ describe("ensureOfferQueueHasImageFallback", () => {
       text: "Offer one",
       imageUrl: "https://img.example.com/1.jpg",
     });
+  });
+});
+
+describe("parseQuickReplyIntent", () => {
+  it("maps numeric replies to property details intent", () => {
+    const parsed = parseQuickReplyIntent("#2");
+    expect(parsed.intent).toBe("details_k");
+    expect(parsed.normalizedMessage).toBe("تفاصيل عن #2");
+  });
+
+  it("maps compare phrase to compare intent", () => {
+    const parsed = parseQuickReplyIntent("compare");
+    expect(parsed.intent).toBe("compare_top");
+  });
+});
+
+describe("parseVoiceConfirmationDecision", () => {
+  it("detects confirmation in Arabic", () => {
+    const parsed = parseVoiceConfirmationDecision("نعم، كمل");
+    expect(parsed.decision).toBe("confirm");
+  });
+
+  it("detects correction with payload", () => {
+    const parsed = parseVoiceConfirmationDecision("تعديل: أبي شقة في جدة");
+    expect(parsed.decision).toBe("correct");
+    expect(parsed.correctedText).toBe("أبي شقة في جدة");
   });
 });
