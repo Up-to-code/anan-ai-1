@@ -15,6 +15,8 @@ export type AgentToolsApi = {
     getGlobalSearchCache: FunctionReference<"query", "public">;
     upsertGlobalSearchCache: FunctionReference<"mutation", "public">;
     trackGlobalSearchCacheHit: FunctionReference<"mutation", "public">;
+    getUserPropertyExposureKeys?: FunctionReference<"query", "public" | "internal">;
+    trackUserPropertyExposure?: FunctionReference<"mutation", "public" | "internal">;
   };
   banks: {
     getById: FunctionReference<"query", "public">;

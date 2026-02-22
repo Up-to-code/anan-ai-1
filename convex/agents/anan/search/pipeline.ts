@@ -4,6 +4,7 @@
 
 import { cleanWhitespace, sanitizeWebText } from "../../_lib/sanitize";
 import { inferCountryFromLocation } from "../../_lib/location";
+import { internal } from "../../../_generated/api";
 import type { DbPropertyResult } from "../../_lib/types";
 import {
   extractPriceHint,
@@ -90,6 +91,84 @@ function rankCandidates(candidates: FindingCandidate[]): FindingCandidate[] {
 function normalizeUrlKey(url: string | undefined): string | null {
   if (!url) return null;
   return url.trim().replace(/\/+$/, "").toLowerCase() || null;
+}
+
+type CachedPropertyDetails = {
+  title?: string;
+  description?: string;
+  price?: string;
+  location?: string;
+  imageUrls?: string[];
+  offerDetails?: string;
+  bathrooms?: string;
+  area?: string;
+  features?: string[];
+  beds?: string;
+};
+
+async function getPropertyDetailsWithCache(
+  ctx: unknown,
+  propertyUrl: string,
+  cardRank: number,
+  state: StagehandState,
+): Promise<Awaited<ReturnType<typeof extractPropertyDetails>>> {
+  const runQuery = (
+    ctx as { runQuery?: (ref: unknown, args: unknown) => Promise<unknown> }
+  ).runQuery;
+  const runMutation = (
+    ctx as { runMutation?: (ref: unknown, args: unknown) => Promise<unknown> }
+  ).runMutation;
+  if (typeof runQuery === "function") {
+    try {
+      const cached = (await runQuery(
+        internal.services.properties.getPropertyDetailCache,
+        { propertyUrl },
+      )) as { detail?: CachedPropertyDetails } | null;
+      if (cached?.detail) {
+        return {
+          title: cached.detail.title,
+          description: cached.detail.description,
+          price: cached.detail.price,
+          location: cached.detail.location,
+          imageUrls: cached.detail.imageUrls ?? [],
+          offerDetails: cached.detail.offerDetails,
+          bathrooms: cached.detail.bathrooms,
+          area: cached.detail.area,
+          features: cached.detail.features,
+          beds: cached.detail.beds,
+        };
+      }
+    } catch {
+      // best-effort cache read
+    }
+  }
+
+  const details = await extractPropertyDetails(ctx, propertyUrl, cardRank, state);
+  if (typeof runMutation === "function" && details && details.imageUrls.length > 0) {
+    const imageCount = details.imageUrls.length;
+    const qualityTier = imageCount >= 4 ? "hot" : imageCount >= 2 ? "warm" : "cold";
+    try {
+      await runMutation(internal.services.properties.upsertPropertyDetailCache, {
+        propertyUrl,
+        qualityTier,
+        detail: {
+          title: details.title,
+          description: details.description,
+          price: details.price,
+          location: details.location,
+          imageUrls: details.imageUrls,
+          offerDetails: details.offerDetails,
+          bathrooms: details.bathrooms,
+          area: details.area,
+          features: details.features,
+          beds: details.beds,
+        },
+      });
+    } catch {
+      // best-effort cache write
+    }
+  }
+  return details;
 }
 
 function toFallbackFinding(candidate: FindingCandidate): PropertyFinding {
@@ -237,7 +316,15 @@ export async function buildFindings(
   }
 
   const ranked = rankCandidates(candidates).slice(0, maxFindings);
-  const detailCandidates = ranked.filter((c) => c.propertyUrl).slice(0, detailEnrichCount);
+  const detailCandidates = ranked
+    .filter((candidate) => candidate.propertyUrl)
+    .sort((a, b) => {
+      const aWeakImages = a.imageUrls.length < 2 ? 1 : 0;
+      const bWeakImages = b.imageUrls.length < 2 ? 1 : 0;
+      if (aWeakImages !== bWeakImages) return bWeakImages - aWeakImages;
+      return b.score - a.score;
+    })
+    .slice(0, detailEnrichCount);
   const detailsByUrl = new Map<
     string,
     Awaited<ReturnType<typeof extractPropertyDetails>>
@@ -251,7 +338,12 @@ export async function buildFindings(
     const detailResults: DetailResult[] = await Promise.all(
       batch.map((candidate) =>
         candidate.propertyUrl
-          ? extractPropertyDetails(ctx, candidate.propertyUrl, candidate.cardRank, state)
+          ? getPropertyDetailsWithCache(
+              ctx,
+              candidate.propertyUrl,
+              candidate.cardRank,
+              state,
+            )
           : Promise.resolve(emptyDetails),
       ),
     );
@@ -460,7 +552,10 @@ export function buildUserResults(
   limit: number,
 ): UserResult[] {
   const filtered = findings.filter(
-    (f) => (f.confidence ?? 1) >= MIN_CONFIDENCE_FOR_USER,
+    (f) =>
+      (f.confidence ?? 1) >= MIN_CONFIDENCE_FOR_USER &&
+      Boolean((f.title ?? "").trim()) &&
+      Boolean((f.propertyUrl ?? f.detailSourceUrl ?? "").trim()),
   );
   const results = filtered.slice(0, limit).map((finding) => ({
     title: finding.title,

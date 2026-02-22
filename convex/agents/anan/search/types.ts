@@ -13,3 +13,13 @@ export type {
   StagehandState,
   SearchAgentResult,
 } from "../results/search";
+
+export type {
+  SearchIntent,
+  SearchScope,
+  SearchProfile,
+  SearchExecutionPlan,
+  SearchStageTrace,
+  CoverageReport,
+  OrchestratedSearchResult,
+} from "./orchestrationTypes";

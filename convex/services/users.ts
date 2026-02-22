@@ -56,6 +56,44 @@ export const getByUserIdInternal = internalQuery({
   },
 });
 
+/** Internal: list WhatsApp clients with best-effort name + phone extraction. */
+export const listWhatsAppClientsInternal = internalQuery({
+  args: { limit: v.optional(v.number()) },
+  returns: v.array(
+    v.object({
+      userId: v.string(),
+      name: v.optional(v.string()),
+      phone: v.string(),
+      source: v.optional(
+        v.union(v.literal("whatsapp"), v.literal("app"), v.literal("web")),
+      ),
+    }),
+  ),
+  handler: async (ctx, { limit }) => {
+    const rows = await ctx.db.query("userProfiles").collect();
+    const selected = rows
+      .filter((row) => row.source === "whatsapp" || !!row.phone)
+      .map((row) => ({
+        userId: row.userId,
+        name: row.name,
+        phone: row.phone ?? row.userId,
+        source: row.source,
+      }))
+      .filter((row) => row.phone && row.phone.trim().length > 0);
+
+    const dedup = new Map<string, (typeof selected)[number]>();
+    for (const item of selected) {
+      if (!dedup.has(item.phone)) dedup.set(item.phone, item);
+    }
+
+    const normalizedLimit =
+      typeof limit === "number" && Number.isFinite(limit) && limit > 0
+        ? Math.floor(limit)
+        : 500;
+    return Array.from(dedup.values()).slice(0, normalizedLimit);
+  },
+});
+
 /** Ensure WhatsApp user exists. Creates or updates. */
 export const ensureWhatsAppUser = mutation({
   args: {

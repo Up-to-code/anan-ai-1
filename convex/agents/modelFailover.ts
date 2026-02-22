@@ -2,11 +2,8 @@
  * Shared model failover helpers (routing/fallback/error classification).
  */
 
-export const DEFAULT_DEMO_FREE_MODEL_FALLBACKS = [
-  "stepfun/step-3.5-flash:free",
-  "arcee-ai/trinity-large-preview:free",
-  "openrouter/aurora-alpha",
-  "openrouter/openai/gpt-oss-20b:free",
+export const DEFAULT_PAID_MODEL_FALLBACKS = [
+  "openai/gpt-4o",
 ] as const;
 
 export function parseModelList(raw: string | undefined): string[] {
@@ -24,9 +21,12 @@ export function buildModelFallbackChain(args: {
   demoFallbacksRaw?: string;
   demoDefaults?: readonly string[];
 }): string[] {
+  const isFreeModel = (model: string) => /(^|:)\s*free$/i.test(model);
+  const keepPaidOnly = (models: string[]) =>
+    models.filter((model) => !isFreeModel(model));
   const configuredFallbacks = parseModelList(args.configuredFallbacksRaw);
   const configuredDemoFallbacks = parseModelList(args.demoFallbacksRaw);
-  const demoDefaults = [...(args.demoDefaults ?? DEFAULT_DEMO_FREE_MODEL_FALLBACKS)];
+  const demoDefaults = [...(args.demoDefaults ?? DEFAULT_PAID_MODEL_FALLBACKS)];
   const effectiveFallbacks =
     configuredFallbacks.length > 0
       ? configuredFallbacks
@@ -34,7 +34,11 @@ export function buildModelFallbackChain(args: {
         ? configuredDemoFallbacks
         : demoDefaults;
 
-  const chain = [args.selectedModel, ...effectiveFallbacks, args.defaultModel ?? undefined];
+  const chain = keepPaidOnly([
+    args.selectedModel ?? "",
+    ...effectiveFallbacks,
+    args.defaultModel ?? "",
+  ]);
   const deduped: string[] = [];
   for (const model of chain) {
     if (!model) continue;

@@ -134,6 +134,49 @@ export default defineSchema({
     .index("status", ["status"])
     .index("threadId_and_status", ["threadId", "status"]),
 
+  /** Pending developer assistant actions requiring user confirmation in chat UI. */
+  developerActions: defineTable({
+    threadId: v.string(),
+    userId: v.string(),
+    actionType: v.union(
+      v.literal("create_listing"),
+      v.literal("update_listing"),
+      v.literal("delete_listing"),
+      v.literal("portfolio_report"),
+      v.literal("extract_insights"),
+      v.literal("deep_plan"),
+      v.literal("other")
+    ),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("confirmed"),
+      v.literal("cancelled"),
+      v.literal("executed"),
+      v.literal("failed")
+    ),
+    title: v.string(),
+    draftPayload: v.any(),
+    editablePayload: v.any(),
+    executionResult: v.optional(v.any()),
+    confirmedAt: v.optional(v.number()),
+    cancelledAt: v.optional(v.number()),
+    executedAt: v.optional(v.number()),
+    failedAt: v.optional(v.number()),
+  })
+    .index("threadId", ["threadId"])
+    .index("threadId_and_status", ["threadId", "status"])
+    .index("userId_and_status", ["userId", "status"]),
+
+  /** Developer ownership links for property management/reporting from chat. */
+  developerPropertyLinks: defineTable({
+    userId: v.string(),
+    propertyId: v.id("properties"),
+    createdAt: v.number(),
+  })
+    .index("userId", ["userId"])
+    .index("propertyId", ["propertyId"])
+    .index("userId_and_propertyId", ["userId", "propertyId"]),
+
   /** Media for entity galleries and pre-confirm pending action uploads. */
   entityMedia: defineTable({
     pendingActionId: v.optional(v.id("adminPendingActions")),
@@ -164,6 +207,7 @@ export default defineSchema({
     userId: v.string(),
     name: v.optional(v.string()),
     phone: v.optional(v.string()),
+    role: v.optional(v.string()),
     email: v.optional(v.string()),
     salary: v.optional(v.number()),
     employment: v.optional(v.string()),
@@ -428,6 +472,45 @@ export default defineSchema({
     .index("expiresAt", ["expiresAt"])
     .index("normalizedQuery_and_createdAt", ["normalizedQuery", "createdAt"]),
 
+  /** Cached property detail snapshots for detail enrichment reuse. */
+  propertyDetailCache: defineTable({
+    propertyUrlKey: v.string(),
+    propertyUrl: v.string(),
+    sourceHash: v.optional(v.string()),
+    qualityTier: v.optional(v.union(v.literal("hot"), v.literal("warm"), v.literal("cold"))),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+    detail: v.object({
+      title: v.optional(v.string()),
+      description: v.optional(v.string()),
+      price: v.optional(v.string()),
+      location: v.optional(v.string()),
+      imageUrls: v.array(v.string()),
+      offerDetails: v.optional(v.string()),
+      bathrooms: v.optional(v.string()),
+      area: v.optional(v.string()),
+      features: v.optional(v.array(v.string())),
+      beds: v.optional(v.string()),
+    }),
+  })
+    .index("propertyUrlKey", ["propertyUrlKey"])
+    .index("expiresAt", ["expiresAt"]),
+
+  /** Tracks which properties were already shown to user for novelty filtering. */
+  userPropertyExposure: defineTable({
+    userId: v.string(),
+    threadId: v.optional(v.string()),
+    queryScope: v.optional(v.union(v.literal("saudi"), v.literal("uae"), v.literal("global"))),
+    queryKey: v.string(),
+    propertyUrlKey: v.string(),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+  })
+    .index("userId_and_createdAt", ["userId", "createdAt"])
+    .index("userId_and_queryKey_and_createdAt", ["userId", "queryKey", "createdAt"])
+    .index("threadId_and_createdAt", ["threadId", "createdAt"])
+    .index("expiresAt", ["expiresAt"]),
+
   /** Admin-only knowledge research trail for user-initiated web/property searches. */
   knowledgeResearch: defineTable({
     userId: v.string(),
@@ -653,6 +736,88 @@ export default defineSchema({
       }),
     ),
   }).index("threadId", ["threadId"]),
+
+  /** WhatsApp inbound idempotency guard by provider message/reaction id. */
+  whatsappInboundEvents: defineTable({
+    providerEventId: v.string(),
+    userId: v.optional(v.string()),
+    eventType: v.union(v.literal("message"), v.literal("reaction")),
+    status: v.union(
+      v.literal("processing"),
+      v.literal("done"),
+      v.literal("failed"),
+    ),
+    messageId: v.optional(v.string()),
+    error: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("providerEventId", ["providerEventId"])
+    .index("status", ["status"]),
+
+  /** WhatsApp outbound delivery logs for diagnostics and policy tuning. */
+  whatsappDeliveryLogs: defineTable({
+    userId: v.string(),
+    threadId: v.optional(v.string()),
+    sourceMessageId: v.optional(v.string()),
+    sendPolicyUsed: v.union(
+      v.literal("normal_search"),
+      v.literal("single_property_detail"),
+      v.literal("general_info"),
+    ),
+    responseMode: v.optional(
+      v.union(
+        v.literal("search_list"),
+        v.literal("single_property_detail"),
+        v.literal("general_info"),
+      ),
+    ),
+    messagesSentPerTurn: v.number(),
+    offersSentPerTurn: v.number(),
+    imagesSentPerTurn: v.number(),
+    retryCount: v.number(),
+    deliveryFailures: v.number(),
+    silentRetryAttempts: v.optional(v.number()),
+    transcriptionStatus: v.optional(
+      v.union(
+        v.literal("not_applicable"),
+        v.literal("success"),
+        v.literal("failed"),
+        v.literal("timeout"),
+      ),
+    ),
+    transcriptionLatencyMs: v.optional(v.number()),
+    voiceConfirmationShown: v.optional(v.boolean()),
+    voiceConfirmed: v.optional(v.boolean()),
+    voiceCorrectionApplied: v.optional(v.boolean()),
+    voiceIntentConfidence: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("userId", ["userId"])
+    .index("threadId", ["threadId"])
+    .index("createdAt", ["createdAt"]),
+
+  /** Pending WhatsApp voice-note confirmations awaiting user approval/correction. */
+  whatsappVoiceConfirmations: defineTable({
+    userId: v.string(),
+    transcriptText: v.string(),
+    intentSummary: v.string(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("confirmed"),
+      v.literal("corrected"),
+      v.literal("expired"),
+      v.literal("cancelled"),
+    ),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+    confirmedAt: v.optional(v.number()),
+    correctedText: v.optional(v.string()),
+    sourceMessageId: v.optional(v.string()),
+  })
+    .index("userId", ["userId"])
+    .index("status", ["status"])
+    .index("expiresAt", ["expiresAt"]),
 
   // ── Agent Memory tables ──────────────────────────────────────────────
 

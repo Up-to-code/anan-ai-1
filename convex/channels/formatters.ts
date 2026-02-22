@@ -102,6 +102,8 @@ export interface FormattedResponse {
   imageUrl?: string;
   imageUrls?: string[];
   offerBlocks?: OfferBlock[];
+  responseMode?: "search_list" | "single_property_detail" | "general_info";
+  allowLinks?: boolean;
 }
 
 export interface OfferBlock {
@@ -135,6 +137,55 @@ type SearchResultShape = {
   /** Data quality 0–1; when < 0.6 show "(Limited info – click for full details)." */
   confidence?: number;
 };
+
+const PROVIDER_NAME_PATTERNS = [
+  /\bbayut(?:\.sa|\.com)?\b/gi,
+  /\bproperty\s*finder(?:\.ae|\.sa|\.com)?\b/gi,
+  /\bwasalt\b/gi,
+  /\baqar\b/gi,
+  /بروبرتي\s*فايندر/gi,
+  /بيوت/gi,
+  /وصلت/gi,
+];
+
+function sanitizeUserFacingText(input: string): string {
+  let text = input;
+  for (const pattern of PROVIDER_NAME_PATTERNS) {
+    text = text.replace(pattern, "");
+  }
+  return text
+    .split("\n")
+    .map((line) => line.replace(/[ \t]{2,}/g, " ").trimEnd())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function compactWhatsAppText(input: string): string {
+  return input
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => (line.length > 220 ? `${line.slice(0, 217)}...` : line))
+    .join("\n");
+}
+
+function hasQuestion(text: string): boolean {
+  return /[؟?]/.test(text);
+}
+
+function appendNextStepIfMissing(
+  text: string,
+  language: PreferredLanguage,
+  actionable: boolean,
+): string {
+  if (!actionable || !text.trim() || hasQuestion(text)) return text;
+  const nextStep =
+    language === "ar"
+      ? "ما الخطوة التالية التي تفضّل أن أبدأ بها؟"
+      : "What would you like me to do next?";
+  return `${text.trim()}\n${nextStep}`;
+}
 
 function inferCountryFromLocation(locationHint?: string): string | undefined {
   const value = (locationHint ?? "").toLowerCase();
@@ -385,7 +436,55 @@ function buildOfferText(
     lines.push(labels.limitedInfo);
   }
 
-  return lines.join("\n").trim();
+  return sanitizeUserFacingText(lines.join("\n").trim());
+}
+
+function extractResponseModeFromToolOutput(
+  toolOutput: unknown,
+): FormattedResponse["responseMode"] {
+  const candidates = normalizeToolOutputCandidates(toolOutput);
+  for (const candidate of candidates) {
+    const parsed = parseToolOutputObject(candidate);
+    const responseMode = parsed?.responseMode;
+    if (
+      responseMode === "search_list" ||
+      responseMode === "single_property_detail" ||
+      responseMode === "general_info"
+    ) {
+      return responseMode;
+    }
+  }
+  return undefined;
+}
+
+function extractAllowLinksFromToolOutput(toolOutput: unknown): boolean | undefined {
+  const candidates = normalizeToolOutputCandidates(toolOutput);
+  for (const candidate of candidates) {
+    const parsed = parseToolOutputObject(candidate);
+    if (typeof parsed?.allowLinks === "boolean") return parsed.allowLinks;
+  }
+  return undefined;
+}
+
+function normalizeOfferBlocks(offerBlocks: OfferBlock[], maxImagesPerBlock = 8): OfferBlock[] {
+  return offerBlocks
+    .map((block) => {
+      const text = sanitizeUserFacingText(String(block.text ?? ""));
+      const imageUrls = Array.from(
+        new Set([block.imageUrl, ...(block.imageUrls ?? [])].filter(Boolean) as string[]),
+      )
+        .filter(isValidPropertyImageUrl)
+        .slice(0, maxImagesPerBlock);
+      const imageUrl = imageUrls[0];
+      if (!text) return null;
+      return {
+        ...block,
+        text,
+        imageUrl,
+        imageUrls: imageUrls.length > 1 ? imageUrls : undefined,
+      } as OfferBlock;
+    })
+    .filter((block): block is OfferBlock => Boolean(block));
 }
 
 function extractOfferBlocksFromToolOutput(
@@ -461,12 +560,15 @@ export function formatForChannel(
     extractImageFromToolOutput?: unknown;
     preferredLanguage?: PreferredLanguage;
     detailedOffers?: boolean;
+    allowLinks?: boolean;
   },
 ): FormattedResponse {
   let text = rawText;
   let imageUrl: string | undefined;
   let imageUrls: string[] = [];
   let offerBlocks: OfferBlock[] | undefined;
+  let responseMode: FormattedResponse["responseMode"];
+  let allowLinks: boolean | undefined;
   const rawToolOutput = options?.extractImageFromToolOutput;
   const preferredLanguage = options?.preferredLanguage;
 
@@ -482,10 +584,13 @@ export function formatForChannel(
     offerBlocks = extractOfferBlocksFromToolOutput(
       rawToolOutput,
       5,
-      false,
+      options?.allowLinks ?? false,
       channel,
       preferredLanguage,
     );
+    responseMode = extractResponseModeFromToolOutput(rawToolOutput);
+    allowLinks =
+      options?.allowLinks ?? extractAllowLinksFromToolOutput(rawToolOutput) ?? false;
     if (channel === "whatsapp") {
       if (options?.detailedOffers && offerBlocks.length > 0) {
         // Keep offer blocks compact for WhatsApp; CTA lives in lead text.
@@ -508,22 +613,62 @@ export function formatForChannel(
   }
 
   if (channel === "whatsapp" && imageUrls.length > 0) {
-    text = stripAllNonImageUrlsFromText(stripImageUrlsFromText(text)) || text;
-    return { text, imageUrl: imageUrl ?? imageUrls[0], imageUrls, offerBlocks };
+    text = sanitizeUserFacingText(
+      stripAllNonImageUrlsFromText(stripImageUrlsFromText(text)) || text,
+    );
+    text = appendNextStepIfMissing(
+      text,
+      preferredLanguage ?? detectPreferredLanguage(text),
+      true,
+    );
+    if (offerBlocks) {
+      offerBlocks = normalizeOfferBlocks(offerBlocks);
+    }
+    return {
+      text: compactWhatsAppText(text),
+      imageUrl: imageUrl ?? imageUrls[0],
+      imageUrls,
+      offerBlocks,
+      responseMode,
+      allowLinks,
+    };
   }
 
   if (channel === "whatsapp" && offerBlocks && offerBlocks.length > 0) {
+    const shaped = appendNextStepIfMissing(
+      sanitizeUserFacingText(stripAllNonImageUrlsFromText(text)),
+      preferredLanguage ?? detectPreferredLanguage(text),
+      true,
+    );
     return {
-      text: stripAllNonImageUrlsFromText(text),
+      text: compactWhatsAppText(shaped),
       imageUrl,
       imageUrls,
-      offerBlocks,
+      offerBlocks: normalizeOfferBlocks(offerBlocks),
+      responseMode,
+      allowLinks,
     };
   }
 
   // Hide non-image links for end-user channels (web/app/whatsapp).
-  const cleanText = stripAllNonImageUrlsFromText(text);
+  const sanitizedText = sanitizeUserFacingText(stripAllNonImageUrlsFromText(text));
+  const cleanText =
+    channel === "whatsapp"
+      ? compactWhatsAppText(
+          appendNextStepIfMissing(
+            sanitizedText,
+            preferredLanguage ?? detectPreferredLanguage(text),
+            true,
+          ),
+        )
+      : sanitizedText;
 
   // Keep app/web backward-compatible with single-image consumers.
-  return { text: cleanText, imageUrl, offerBlocks };
+  return {
+    text: cleanText,
+    imageUrl,
+    offerBlocks: offerBlocks ? normalizeOfferBlocks(offerBlocks) : undefined,
+    responseMode,
+    allowLinks,
+  };
 }

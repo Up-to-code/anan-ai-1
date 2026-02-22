@@ -31,7 +31,7 @@ describe("judgeColumnTest", () => {
       tc,
       mockResult({
         toolResults: [{ name: "smartPropertySearch", result: {} }],
-        assistantMessage: "هذه نتائج البحث عن شقق في الرياض",
+        assistantMessage: "هذه أفضل النتائج الآن\n- خيار 1\n- خيار 2\nهل تريد تفاصيل أكثر؟",
         offerBlocks: [
           { imageUrls: ["https://example.com/1.jpg"] },
           { imageUrls: ["https://example.com/2.jpg"] },
@@ -108,7 +108,7 @@ describe("judgeColumnTest", () => {
       tc,
       mockResult({
         toolResults: [{ name: "smartPropertySearch", result: {} }],
-        assistantMessage: "إليك بدائل أرخص في أحياء قريبة",
+        assistantMessage: "عندي بدائل أرخص لك\n- حي قريب\n- سعر أقل\nتحب أعرض التفاصيل؟",
         offerBlocks: [],
       })
     );
@@ -194,5 +194,47 @@ describe("judgeColumnTest", () => {
     );
     expect(r.pass).toBe(false);
     expect(r.suggestions.length).toBeGreaterThan(0);
+  });
+
+  it("fails when response contract is missing next-step question", () => {
+    const tc: ColumnTestCase = {
+      id: "response-contract",
+      userMessage: "apartments in riyadh",
+      intent: "search",
+      passCriteria: {
+        enforceResponseContract: true,
+      },
+    };
+    const r = judgeColumnTest(
+      tc,
+      mockResult({
+        assistantMessage: "Here are options\n- item 1\n- item 2",
+      }),
+    );
+    expect(r.pass).toBe(false);
+    expect(
+      r.reasons.some((x) =>
+        x.includes("Answer -> Details -> Next Step contract"),
+      ),
+    ).toBe(true);
+  });
+
+  it("fails when vendor/provider name appears in output", () => {
+    const tc: ColumnTestCase = {
+      id: "no-vendor",
+      userMessage: "search",
+      intent: "search",
+      passCriteria: {
+        enforceNoVendorNames: true,
+      },
+    };
+    const r = judgeColumnTest(
+      tc,
+      mockResult({
+        assistantMessage: "I found this on Bayut and can share more.",
+      }),
+    );
+    expect(r.pass).toBe(false);
+    expect(r.reasons.some((x) => x.includes("provider/vendor"))).toBe(true);
   });
 });

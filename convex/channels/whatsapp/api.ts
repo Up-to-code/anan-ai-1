@@ -16,6 +16,7 @@ export interface ExtractedTextMessage {
   displayName?: string;
   mediaType?: ExtractedMessageMediaType;
   caption?: string;
+  mediaId?: string;
 }
 
 /** Reaction event from webhook (user reacted to our message) */
@@ -102,6 +103,7 @@ export function extractWebhookEvents(body: string): ExtractedTextMessage[] {
               : "User sent an image. Ask them to describe it if you need details.",
             mediaType: "image",
             caption,
+            mediaId: msg.image.id,
           });
           continue;
         }
@@ -111,6 +113,7 @@ export function extractWebhookEvents(body: string): ExtractedTextMessage[] {
             ...base,
             text: "User sent a voice message. Ask them to type the key points if you need details.",
             mediaType: "audio",
+            mediaId: msg.audio.id,
           });
           continue;
         }
@@ -124,6 +127,7 @@ export function extractWebhookEvents(body: string): ExtractedTextMessage[] {
               : "User sent a video message. Ask them to type the key points if you need details.",
             mediaType: "video",
             caption,
+            mediaId: msg.video.id,
           });
           continue;
         }
@@ -134,6 +138,7 @@ export function extractWebhookEvents(body: string): ExtractedTextMessage[] {
             ...base,
             text: `User sent a document (${fn}). Ask them to paste relevant text if you need to analyze it.`,
             mediaType: "document",
+            mediaId: msg.document.id,
           });
           continue;
         }
@@ -227,6 +232,7 @@ export function extractAllWebhookEvents(body: string): {
               : "User sent an image. Ask them to describe it if you need details.",
             mediaType: "image",
             caption,
+            mediaId: msg.image.id,
           });
           continue;
         }
@@ -235,6 +241,7 @@ export function extractAllWebhookEvents(body: string): {
             ...msgBase,
             text: "User sent a voice message. Ask them to type the key points if you need details.",
             mediaType: "audio",
+            mediaId: msg.audio.id,
           });
           continue;
         }
@@ -247,6 +254,7 @@ export function extractAllWebhookEvents(body: string): {
               : "User sent a video message. Ask them to type the key points if you need details.",
             mediaType: "video",
             caption,
+            mediaId: msg.video.id,
           });
           continue;
         }
@@ -256,6 +264,7 @@ export function extractAllWebhookEvents(body: string): {
             ...msgBase,
             text: `User sent a document (${fn}). Ask them to paste relevant text if you need to analyze it.`,
             mediaType: "document",
+            mediaId: msg.document.id,
           });
         }
       }
@@ -595,4 +604,28 @@ export async function sendWhatsAppTemplate(
     success: true,
     messageId: data.messages?.[0]?.id,
   };
+}
+
+export async function getWhatsAppMediaDownloadUrl(
+  mediaId: string,
+): Promise<{ success: boolean; url?: string; mimeType?: string; error?: string }> {
+  const token = process.env.WHATSAPP_ACCESS_TOKEN;
+  if (!token) return { success: false, error: "WHATSAPP_ACCESS_TOKEN not set" };
+  const url = `https://graph.facebook.com/${WHATSAPP_API_VERSION}/${mediaId}`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = (await res.json().catch(() => ({}))) as {
+    url?: string;
+    mime_type?: string;
+    error?: { message?: string };
+  };
+  if (!res.ok || !data.url) {
+    return {
+      success: false,
+      error: data.error?.message ?? `HTTP ${res.status}`,
+    };
+  }
+  return { success: true, url: data.url, mimeType: data.mime_type };
 }

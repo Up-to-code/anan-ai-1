@@ -1,5 +1,7 @@
 # Scalability Plan v0.0.3
 
+> Superseded by `/Users/ahmedmansour/anan/docs/Create.md` for v0.0.4 master architecture and rollout controls.
+
 ## Objective
 Make chat and search paths reliable for high concurrency (thousands of users) with deterministic protection, measurable SLOs, and load-test gates.
 

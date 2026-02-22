@@ -444,6 +444,17 @@ const searchScopeValidator = v.union(
   v.literal("global"),
 );
 
+const detailCacheTierValidator = v.union(
+  v.literal("hot"),
+  v.literal("warm"),
+  v.literal("cold"),
+);
+
+function normalizeUrlKey(url: string | undefined): string | null {
+  if (!url) return null;
+  return url.trim().replace(/\/+$/, "").toLowerCase() || null;
+}
+
 function deriveSearchScope(query: string, explicitScope?: "saudi" | "uae" | "global"): "saudi" | "uae" | "global" {
   if (explicitScope) return explicitScope;
   const normalized = query.toLowerCase();
@@ -634,6 +645,216 @@ export const clearGlobalSearchCache = mutation({
       removed += 1;
     }
     return { removed };
+  },
+});
+
+function resolveDetailCacheTtlMs(tier: "hot" | "warm" | "cold"): number {
+  if (tier === "hot") return 30 * 60 * 1000;
+  if (tier === "warm") return 6 * 60 * 60 * 1000;
+  return 24 * 60 * 60 * 1000;
+}
+
+export const getPropertyDetailCache = internalQuery({
+  args: {
+    propertyUrl: v.string(),
+    nowMs: v.optional(v.number()),
+  },
+  returns: v.union(
+    v.null(),
+    v.object({
+      propertyUrlKey: v.string(),
+      propertyUrl: v.string(),
+      sourceHash: v.optional(v.string()),
+      qualityTier: v.optional(detailCacheTierValidator),
+      createdAt: v.number(),
+      expiresAt: v.number(),
+      detail: v.object({
+        title: v.optional(v.string()),
+        description: v.optional(v.string()),
+        price: v.optional(v.string()),
+        location: v.optional(v.string()),
+        imageUrls: v.array(v.string()),
+        offerDetails: v.optional(v.string()),
+        bathrooms: v.optional(v.string()),
+        area: v.optional(v.string()),
+        features: v.optional(v.array(v.string())),
+        beds: v.optional(v.string()),
+      }),
+    }),
+  ),
+  handler: async (ctx, { propertyUrl, nowMs = Date.now() }) => {
+    const propertyUrlKey = normalizeUrlKey(propertyUrl);
+    if (!propertyUrlKey) return null;
+    const row = await ctx.db
+      .query("propertyDetailCache")
+      .withIndex("propertyUrlKey", (q) => q.eq("propertyUrlKey", propertyUrlKey))
+      .first();
+    if (!row) return null;
+    if (row.expiresAt <= nowMs) return null;
+    return {
+      propertyUrlKey: row.propertyUrlKey,
+      propertyUrl: row.propertyUrl,
+      sourceHash: row.sourceHash,
+      qualityTier: row.qualityTier,
+      createdAt: row.createdAt,
+      expiresAt: row.expiresAt,
+      detail: row.detail,
+    };
+  },
+});
+
+export const upsertPropertyDetailCache = internalMutation({
+  args: {
+    propertyUrl: v.string(),
+    sourceHash: v.optional(v.string()),
+    qualityTier: v.optional(detailCacheTierValidator),
+    detail: v.object({
+      title: v.optional(v.string()),
+      description: v.optional(v.string()),
+      price: v.optional(v.string()),
+      location: v.optional(v.string()),
+      imageUrls: v.array(v.string()),
+      offerDetails: v.optional(v.string()),
+      bathrooms: v.optional(v.string()),
+      area: v.optional(v.string()),
+      features: v.optional(v.array(v.string())),
+      beds: v.optional(v.string()),
+    }),
+    createdAt: v.optional(v.number()),
+    ttlMs: v.optional(v.number()),
+  },
+  returns: v.string(),
+  handler: async (
+    ctx,
+    { propertyUrl, sourceHash, qualityTier = "warm", detail, createdAt, ttlMs },
+  ) => {
+    const propertyUrlKey = normalizeUrlKey(propertyUrl);
+    if (!propertyUrlKey) return "";
+    const now = createdAt ?? Date.now();
+    const expiresAt = now + Math.max(60_000, ttlMs ?? resolveDetailCacheTtlMs(qualityTier));
+    const existing = await ctx.db
+      .query("propertyDetailCache")
+      .withIndex("propertyUrlKey", (q) => q.eq("propertyUrlKey", propertyUrlKey))
+      .first();
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        propertyUrl,
+        sourceHash,
+        qualityTier,
+        createdAt: now,
+        expiresAt,
+        detail,
+      });
+      return propertyUrlKey;
+    }
+    await ctx.db.insert("propertyDetailCache", {
+      propertyUrlKey,
+      propertyUrl,
+      sourceHash,
+      qualityTier,
+      createdAt: now,
+      expiresAt,
+      detail,
+    });
+    return propertyUrlKey;
+  },
+});
+
+const userPropertyExposureScopeValidator = v.union(
+  v.literal("saudi"),
+  v.literal("uae"),
+  v.literal("global"),
+);
+
+export const getUserPropertyExposureKeys = internalQuery({
+  args: {
+    userId: v.string(),
+    threadId: v.optional(v.string()),
+    query: v.string(),
+    scope: v.optional(userPropertyExposureScopeValidator),
+    lookbackMs: v.optional(v.number()),
+    nowMs: v.optional(v.number()),
+  },
+  returns: v.array(v.string()),
+  handler: async (
+    ctx,
+    { userId, threadId, query, scope, lookbackMs = 24 * 60 * 60 * 1000, nowMs = Date.now() },
+  ) => {
+    const effectiveScope = deriveSearchScope(query, scope);
+    const queryKey = normalizeQueryForCache(query);
+    const since = nowMs - lookbackMs;
+    const byUser = await ctx.db
+      .query("userPropertyExposure")
+      .withIndex("userId_and_queryKey_and_createdAt", (q) =>
+        q.eq("userId", userId).eq("queryKey", queryKey),
+      )
+      .order("desc")
+      .take(200);
+
+    const seen = new Set<string>();
+    for (const row of byUser) {
+      if (row.createdAt < since) continue;
+      if (row.expiresAt <= nowMs) continue;
+      if (row.queryScope && row.queryScope !== effectiveScope) continue;
+      seen.add(row.propertyUrlKey);
+    }
+
+    if (threadId) {
+      const byThread = await ctx.db
+        .query("userPropertyExposure")
+        .withIndex("threadId_and_createdAt", (q) => q.eq("threadId", threadId))
+        .order("desc")
+        .take(100);
+      for (const row of byThread) {
+        if (row.userId !== userId) continue;
+        if (row.createdAt < since) continue;
+        if (row.expiresAt <= nowMs) continue;
+        seen.add(row.propertyUrlKey);
+      }
+    }
+
+    return Array.from(seen);
+  },
+});
+
+export const trackUserPropertyExposure = internalMutation({
+  args: {
+    userId: v.string(),
+    threadId: v.optional(v.string()),
+    query: v.string(),
+    scope: v.optional(userPropertyExposureScopeValidator),
+    propertyUrls: v.array(v.string()),
+    createdAt: v.optional(v.number()),
+    ttlMs: v.optional(v.number()),
+  },
+  returns: v.number(),
+  handler: async (
+    ctx,
+    { userId, threadId, query, scope, propertyUrls, createdAt, ttlMs },
+  ) => {
+    const now = createdAt ?? Date.now();
+    const expiresAt = now + Math.max(60_000, ttlMs ?? 24 * 60 * 60 * 1000);
+    const queryKey = normalizeQueryForCache(query);
+    const queryScope = deriveSearchScope(query, scope);
+    const uniqueUrlKeys = Array.from(
+      new Set(
+        propertyUrls
+          .map((url) => normalizeUrlKey(url))
+          .filter((url): url is string => Boolean(url)),
+      ),
+    );
+    for (const propertyUrlKey of uniqueUrlKeys) {
+      await ctx.db.insert("userPropertyExposure", {
+        userId,
+        threadId,
+        queryScope,
+        queryKey,
+        propertyUrlKey,
+        createdAt: now,
+        expiresAt,
+      });
+    }
+    return uniqueUrlKeys.length;
   },
 });
 

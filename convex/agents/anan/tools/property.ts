@@ -384,6 +384,68 @@ async function resolveExcludedPropertyUrls(
   }
 }
 
+async function resolveSeenExposureUrls(
+  ctx: unknown,
+  appApi: AgentToolsApi,
+  userId: string | undefined,
+  threadId: string | undefined,
+  query: string,
+): Promise<string[]> {
+  if (!userId || userId === "anonymous") return [];
+  if (!appApi.properties.getUserPropertyExposureKeys) return [];
+  const runQuery = (
+    ctx as { runQuery?: (ref: unknown, args: unknown) => Promise<unknown> }
+  ).runQuery;
+  if (typeof runQuery !== "function") return [];
+  try {
+    const keys = (await runQuery(appApi.properties.getUserPropertyExposureKeys, {
+      userId,
+      threadId,
+      query,
+      lookbackMs: 24 * 60 * 60 * 1000,
+    })) as string[];
+    return Array.isArray(keys) ? keys : [];
+  } catch {
+    return [];
+  }
+}
+
+async function trackExposedPropertyUrls(
+  ctx: unknown,
+  appApi: AgentToolsApi,
+  params: {
+    userId: string | undefined;
+    threadId: string | undefined;
+    query: string;
+    urls: Array<string | undefined>;
+  },
+): Promise<void> {
+  if (!params.userId || params.userId === "anonymous") return;
+  if (!appApi.properties.trackUserPropertyExposure) return;
+  const runMutation = (
+    ctx as { runMutation?: (ref: unknown, args: unknown) => Promise<unknown> }
+  ).runMutation;
+  if (typeof runMutation !== "function") return;
+  const propertyUrls = Array.from(
+    new Set(
+      params.urls
+        .map((url) => sanitizeWebText(url))
+        .filter((url): url is string => Boolean(url)),
+    ),
+  );
+  if (propertyUrls.length === 0) return;
+  try {
+    await runMutation(appApi.properties.trackUserPropertyExposure, {
+      userId: params.userId,
+      threadId: params.threadId,
+      query: params.query,
+      propertyUrls,
+    });
+  } catch (error) {
+    console.warn("[property.trackExposedPropertyUrls] failed:", error);
+  }
+}
+
 const QUERY_STOPWORDS = new Set([
   // English
   "a",
@@ -648,6 +710,19 @@ function filterUserResultsByExcludedUrls<
   });
 }
 
+function collectResultUrls(
+  results: Array<{ externalUrl?: string; url?: string }>,
+): string[] {
+  return Array.from(
+    new Set(
+      results
+        .flatMap((result) => [result.externalUrl, result.url])
+        .map((url) => sanitizeWebText(url))
+        .filter((url): url is string => Boolean(url)),
+    ),
+  );
+}
+
 function extractDomainFromUrl(url: string | undefined): string | null {
   if (!url) return null;
   try {
@@ -822,7 +897,14 @@ export function createPropertyTools(appApi: AgentToolsApi) {
         query,
         refreshToken,
       );
-      const excludedUrlKeys = new Set(excludedPropertyUrls);
+      const seenExposureUrls = await resolveSeenExposureUrls(
+        ctx,
+        appApi,
+        userId,
+        threadId,
+        query,
+      );
+      const excludedUrlKeys = new Set([...excludedPropertyUrls, ...seenExposureUrls]);
 
       console.log("[tools.smartPropertySearch] start", {
         query,
@@ -920,6 +1002,13 @@ export function createPropertyTools(appApi: AgentToolsApi) {
           source: "internal_db",
           resultCount: dbResults.length,
         });
+        const dbOutput = normalizeDbResultsForOutput(dbResults);
+        await trackExposedPropertyUrls(ctx, appApi, {
+          userId,
+          threadId,
+          query,
+          urls: collectResultUrls(dbOutput),
+        });
         return toonEncode({
           searchStarted: true,
           searchStartedMessage,
@@ -928,7 +1017,8 @@ export function createPropertyTools(appApi: AgentToolsApi) {
             ar: searchStartedMessageAr,
           },
           source: "internal_db",
-          results: normalizeDbResultsForOutput(dbResults),
+          responseMode: "search_list",
+          results: dbOutput,
           presentationGuidance: {
             avoidProviderNames: true,
             includeLinksOnlyOnUserRequest: true,
@@ -969,6 +1059,13 @@ export function createPropertyTools(appApi: AgentToolsApi) {
           source: "internal_db",
           resultCount: syntheticResults.length,
         });
+        const syntheticOutput = normalizeDbResultsForOutput(syntheticResults);
+        await trackExposedPropertyUrls(ctx, appApi, {
+          userId,
+          threadId,
+          query,
+          urls: collectResultUrls(syntheticOutput),
+        });
         return toonEncode({
           searchStarted: true,
           searchStartedMessage,
@@ -977,7 +1074,8 @@ export function createPropertyTools(appApi: AgentToolsApi) {
             ar: searchStartedMessageAr,
           },
           source: "internal_db",
-          results: normalizeDbResultsForOutput(syntheticResults),
+          responseMode: "search_list",
+          results: syntheticOutput,
           note: "Deterministic column-test fallback results.",
           presentationGuidance: {
             avoidProviderNames: true,
@@ -1040,6 +1138,12 @@ export function createPropertyTools(appApi: AgentToolsApi) {
               source: "search_memory",
               resultCount: enrichedResults.length,
             });
+            await trackExposedPropertyUrls(ctx, appApi, {
+              userId,
+              threadId,
+              query,
+              urls: collectResultUrls(enrichedResults),
+            });
             return toonEncode({
               searchStarted: true,
               searchStartedMessage,
@@ -1050,6 +1154,7 @@ export function createPropertyTools(appApi: AgentToolsApi) {
               source: "search_memory",
               cacheLayer: "global",
               refreshOffset,
+              responseMode: "search_list",
               results: enrichedResults,
               presentationGuidance: {
                 avoidProviderNames: true,
@@ -1114,6 +1219,12 @@ export function createPropertyTools(appApi: AgentToolsApi) {
               source: "search_memory",
               resultCount: enrichedResults.length,
             });
+            await trackExposedPropertyUrls(ctx, appApi, {
+              userId,
+              threadId,
+              query,
+              urls: collectResultUrls(enrichedResults),
+            });
             return toonEncode({
               searchStarted: true,
               searchStartedMessage,
@@ -1122,6 +1233,7 @@ export function createPropertyTools(appApi: AgentToolsApi) {
                 ar: searchStartedMessageAr,
               },
               source: "search_memory",
+              responseMode: "search_list",
               results: enrichedResults,
               presentationGuidance: {
                 avoidProviderNames: true,
@@ -1257,6 +1369,12 @@ export function createPropertyTools(appApi: AgentToolsApi) {
             source: "serper",
             resultCount: enrichedResults.length,
           });
+          await trackExposedPropertyUrls(ctx, appApi, {
+            userId,
+            threadId,
+            query,
+            urls: collectResultUrls(enrichedResults),
+          });
           return toonEncode({
             searchStarted: true,
             searchStartedMessage,
@@ -1266,12 +1384,15 @@ export function createPropertyTools(appApi: AgentToolsApi) {
             },
             source: "web_fallback",
             refreshOffset,
+            responseMode: "search_list",
             results: enrichedResults,
             knowledgeResearch: {
               taskList: searchResult.knowledgePayload.taskList,
               searchTerms: searchResult.knowledgePayload.searchTerms,
               sourceRuns: searchResult.knowledgePayload.sourceRuns.length,
               findings: searchResult.knowledgePayload.propertyFindings.length,
+              orchestrationTrace: searchResult.orchestrationTrace ?? [],
+              coverageReport: searchResult.coverageReport,
             },
             presentationGuidance: {
               avoidProviderNames: true,
@@ -1312,6 +1433,13 @@ export function createPropertyTools(appApi: AgentToolsApi) {
             }),
           );
         }
+        const dbFallbackOutput = normalizeDbResultsForOutput(dbResults);
+        await trackExposedPropertyUrls(ctx, appApi, {
+          userId,
+          threadId,
+          query,
+          urls: collectResultUrls(dbFallbackOutput),
+        });
         return toonEncode({
           searchStarted: true,
           searchStartedMessage,
@@ -1320,7 +1448,8 @@ export function createPropertyTools(appApi: AgentToolsApi) {
             ar: searchStartedMessageAr,
           },
           source: "internal_db",
-          results: normalizeDbResultsForOutput(dbResults),
+          responseMode: "search_list",
+          results: dbFallbackOutput,
           note: "I returned the closest internal matches while searching wider options.",
           presentationGuidance: {
             avoidProviderNames: true,
@@ -1338,6 +1467,7 @@ export function createPropertyTools(appApi: AgentToolsApi) {
           ar: searchStartedMessageAr,
         },
         source: "web_fallback_failed",
+        responseMode: "search_list",
         results: [],
         note: "I could not find matching options right now. Try another location or budget range.",
       });
@@ -1363,6 +1493,7 @@ export function createPropertyTools(appApi: AgentToolsApi) {
               .filter(Boolean)
               .join("\n\n");
             return toonEncode({
+              responseMode: "single_property_detail",
               results: [
                 {
                   title: details.title,
@@ -1395,6 +1526,7 @@ export function createPropertyTools(appApi: AgentToolsApi) {
       const apiKey = process.env.SERPER_API_KEY;
       if (!apiKey) {
         return toonEncode({
+          responseMode: "single_property_detail",
           error:
             "Web search is not configured. Present the description and details from getLastSearchFindings instead.",
         });
@@ -1428,6 +1560,7 @@ export function createPropertyTools(appApi: AgentToolsApi) {
         if (!res?.ok) {
           const errText = res ? await res.text() : "no response";
           return toonEncode({
+            responseMode: "single_property_detail",
             error: `Search failed: ${res?.status ?? "unknown"} ${errText}`,
             snippet: null,
             url: null,
@@ -1503,6 +1636,7 @@ export function createPropertyTools(appApi: AgentToolsApi) {
         ).slice(0, 10);
         if (!first) {
           return toonEncode({
+            responseMode: "single_property_detail",
             results: [],
             snippet: null,
             url: null,
@@ -1512,6 +1646,7 @@ export function createPropertyTools(appApi: AgentToolsApi) {
           });
         }
         return toonEncode({
+          responseMode: "single_property_detail",
           results: [
             {
               title: sanitizeWebText(first.title),
@@ -1528,6 +1663,7 @@ export function createPropertyTools(appApi: AgentToolsApi) {
       } catch (e) {
         return toonEncode({
           error: e instanceof Error ? e.message : "Web search failed",
+          responseMode: "single_property_detail",
           results: [],
           snippet: null,
           url: null,

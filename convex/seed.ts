@@ -1,7 +1,12 @@
 import { internalMutation, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { components } from "./_generated/api";
-import { systemPrompt, realEstatePrompt, toolsPrompt } from "./lib/prompts";
+import { systemPrompt } from "./agents/anan/instructions/system";
+import {
+  reasoningBlock,
+  realEstatePrompt,
+} from "./agents/anan/instructions/realEstate";
+import { toolsPrompt } from "./agents/anan/instructions/toolsSummary";
 import { ROLE_ADMIN } from "./roles";
 
 const propertyImportValidator = v.object({
@@ -48,7 +53,7 @@ export const updatePrompts = mutation({
   handler: async (ctx) => {
     const prompts = [
       { key: "system", value: systemPrompt },
-      { key: "realEstate", value: realEstatePrompt },
+      { key: "realEstate", value: `${reasoningBlock}\n\n${realEstatePrompt}` },
       { key: "tools", value: toolsPrompt },
     ];
     for (const p of prompts) {
@@ -164,7 +169,7 @@ export const run = mutation({
       await ctx.db.insert("prompts", { key: "system", value: systemPrompt });
       await ctx.db.insert("prompts", {
         key: "realEstate",
-        value: realEstatePrompt,
+        value: `${reasoningBlock}\n\n${realEstatePrompt}`,
       });
       await ctx.db.insert("prompts", { key: "tools", value: toolsPrompt });
     }
@@ -172,8 +177,8 @@ export const run = mutation({
     if (existingAISettings.length === 0) {
       // Initialize default AI settings
       const defaultSettings = [
-        { key: "defaultModel", value: "openai/gpt-4o-mini" },
-        { key: "searchModel", value: "openai/gpt-4o-mini" },
+        { key: "defaultModel", value: "moonshotai/kimi-k2-thinking" },
+        { key: "searchModel", value: "moonshotai/kimi-k2-thinking" },
         { key: "maxTokens", value: "4096" },
         { key: "temperature", value: "0.7" },
         { key: "enableCache", value: "true" },
