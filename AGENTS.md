@@ -31,7 +31,9 @@ See `package.json` scripts. The most important:
 - **Admin symlink:** The admin app resolves `convex/_generated/*` via webpack/turbopack aliases pointing to a local `convex/` directory. A symlink `admin/convex -> ../convex` must exist for the admin dev server to compile. Create it with `ln -sf ../convex admin/convex`.
 - **Admin uses bun:** The admin app uses `bun` as its package manager (has `bun.lock`). Install deps with `bun install` inside `admin/`.
 - **Admin `.env.local`:** The admin needs `NEXT_PUBLIC_CONVEX_URL` and `NEXT_PUBLIC_SITE_URL` in `admin/.env.local`. Copy from `admin/.env.example`.
-- **Convex authentication:** Running `npx convex dev` requires interactive Convex CLI login. In CI, use `CONVEX_DEPLOY_KEY`. Without a Convex deployment, the admin UI compiles and renders but cannot connect to the backend.
+- **Convex deployment name:** The deployment is `dev:outstanding-mastiff-930`. The Convex URL is `https://outstanding-mastiff-930.convex.cloud`. Set `NEXT_PUBLIC_CONVEX_URL` in `admin/.env.local` and `CONVEX_DEPLOYMENT` / `VITE_CONVEX_URL` in root `.env.local`.
+- **Convex authentication:** Running `npx convex dev` requires interactive Convex CLI login. In CI, use `CONVEX_DEPLOY_KEY`. The `CONVEX_DEPLOY_KEY` secret should be a proper deploy key (format: `prod:xxx|dev:xxx`), not the deployment name.
 - **Root `.gitignore` includes `admin/`:** Admin files were force-added to git. When adding new admin files, use `git add -f admin/path/to/file`.
-- **Pre-existing test failures:** 4 tests in `convex/agents/anan/` fail due to timestamp non-determinism and missing assertions. These are not caused by the environment setup.
+- **Vitest runs tests twice with symlink:** Because `admin/convex` symlinks to `../convex`, vitest discovers the same test files through both `convex/**/*.test.ts` and `admin/convex/**/*.test.ts` patterns. This doubles execution time but doesn't affect correctness.
+- **Pre-existing test failures:** 4 unique tests in `convex/agents/anan/` fail due to timestamp non-determinism and missing assertions. These are not caused by the environment setup.
 - **Pre-existing lint warnings:** ESLint reports ~200 warnings and ~78 errors (mostly in `tests/` and `scripts/`). These are pre-existing in the codebase.
