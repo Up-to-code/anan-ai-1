@@ -66,3 +66,7 @@ npx convex dev
 
 - [Convex docs](https://docs.convex.dev/)
 - [Expo docs](https://docs.expo.dev/)
+
+## Project links
+
+[Source](https://github.com/Up-to-code/anan-ai-1) · [Issues](https://github.com/Up-to-code/anan-ai-1/issues) · [Public project directory](https://github.com/qentrah/.github/blob/main/profile/PROJECTS.md)
